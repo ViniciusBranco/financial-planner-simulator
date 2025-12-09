@@ -60,8 +60,8 @@ Diferente de apps tradicionais, o sistema opera em três camadas temporais:
 ### Rodando o Projeto
 ```bash
 # 1. Clone o repositório
-git clone [https://github.com/seu-usuario/finances-2025.git](https://github.com/seu-usuario/finances-2025.git)
-cd finances-2025
+git clone [https://github.com/ViniciusBranco/financial-planner-simulator.git](https://github.com/ViniciusBranco/financial-planner-simulator.git)
+cd financial-planner-simulator
 
 # 2. Suba os containers (Build inicial pode demorar alguns minutos)
 docker compose up -d --build

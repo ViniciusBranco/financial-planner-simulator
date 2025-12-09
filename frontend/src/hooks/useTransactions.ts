@@ -31,6 +31,8 @@ export interface TransactionFilters {
     category?: string;
     is_recurring?: boolean;
     source_type?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
 }
 
 export type TransactionResponse = {
@@ -50,6 +52,10 @@ async function fetchTransactions(filters: TransactionFilters): Promise<Transacti
     if (filters.category) params.append('category', filters.category)
     if (filters.is_recurring !== undefined) params.append('is_recurring', filters.is_recurring.toString())
     if (filters.source_type) params.append('source_type', filters.source_type)
+    if (filters.sort_by) params.append('sort_by', filters.sort_by)
+    if (filters.sort_order) params.append('sort_order', filters.sort_order)
+
+    console.log("Fetching transactions with params:", params.toString())
 
     const res = await fetch(`${API_URL}/transactions/?${params}`)
     if (!res.ok) throw new Error('Failed to fetch transactions')
@@ -442,5 +448,25 @@ export function useSimulationProjection(scenarioId?: number | null) {
     return useQuery<SimulationResponse>({
         queryKey: ['simulation', scenarioId],
         queryFn: () => fetchSimulationProjection(12, scenarioId),
+    })
+}
+
+async function autoCategorizeTransactions(limit: number = 20) {
+    const res = await fetch(`${API_URL}/transactions/auto-categorize?limit=${limit}`, {
+        method: 'POST',
+    })
+    if (!res.ok) throw new Error('Failed to auto-categorize transactions')
+    return res.json()
+}
+
+export function useAutoCategorize() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: autoCategorizeTransactions,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard_breakdown'] })
+        },
     })
 }

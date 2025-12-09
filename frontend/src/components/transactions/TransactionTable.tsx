@@ -5,10 +5,11 @@ import {
     flexRender,
     createColumnHelper,
     PaginationState,
+    SortingState,
 } from '@tanstack/react-table'
 import { Transaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Input } from '@/components/ui'
-import { Repeat, ArrowLeft, ArrowRight, Pencil, Trash, CreditCard, Wallet, User, RefreshCw } from 'lucide-react'
+import { Repeat, ArrowLeft, ArrowRight, Pencil, Trash, CreditCard, Wallet, User, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react'
 
 // Helper to format currency
 const formatCurrency = (amount: number) => {
@@ -26,6 +27,93 @@ const formatDate = (dateString: string) => {
     return `${day}/${month}/${year}`
 }
 
+const CATEGORY_OPTIONS = [
+    "Moradia",
+    "Dogs",
+    "Alimentação",
+    "Transporte",
+    "Saúde",
+    "Lazer",
+    "Streaming",
+    "Assinaturas",
+    "Compras/Vestuário",
+    "Educação",
+    "Serviços Financeiros",
+    "Investimentos",
+    "Salário",
+    "Receita",
+    "Não Categorizado"
+]
+
+function CategoryInput({ value, onChange }: { value: string, onChange: (val: string) => void }) {
+    const [open, setOpen] = useState(false)
+    const [showAll, setShowAll] = useState(false)
+    const ref = React.useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (ref.current && !ref.current.contains(event.target as Node)) {
+                setOpen(false)
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside)
+        return () => document.removeEventListener("mousedown", handleClickOutside)
+    }, [])
+
+    const filteredOptions = useMemo(() => {
+        if (showAll) return CATEGORY_OPTIONS
+        const lower = value.toLowerCase()
+        return CATEGORY_OPTIONS.filter(cat => cat.toLowerCase().includes(lower))
+    }, [value, showAll])
+
+    const handleSelect = (cat: string) => {
+        onChange(cat)
+        setOpen(false)
+    }
+
+    return (
+        <div className="relative" ref={ref}>
+            <div className="relative">
+                <Input
+                    value={value}
+                    onChange={(e) => {
+                        onChange(e.target.value)
+                        setOpen(true)
+                        setShowAll(false)
+                    }}
+                    placeholder="Select or type category..."
+                    className="pr-10"
+                />
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                        setOpen(!open)
+                        if (!open) setShowAll(true)
+                    }}
+                >
+                    <ChevronDown className="h-4 w-4" />
+                </Button>
+            </div>
+            {open && filteredOptions.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-md max-h-[200px] overflow-auto py-1">
+                    {filteredOptions.map((cat) => (
+                        <div
+                            key={cat}
+                            className="px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                            onClick={() => handleSelect(cat)}
+                        >
+                            {cat}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 const columnHelper = createColumnHelper<Transaction>()
 
 interface TransactionTableProps {
@@ -33,9 +121,11 @@ interface TransactionTableProps {
     pageCount: number
     pagination: PaginationState
     setPagination: React.Dispatch<React.SetStateAction<PaginationState>>
+    sorting: SortingState
+    setSorting: React.Dispatch<React.SetStateAction<SortingState>>
 }
 
-export function TransactionTable({ data, pageCount, pagination, setPagination }: TransactionTableProps) {
+export function TransactionTable({ data, pageCount, pagination, setPagination, sorting, setSorting }: TransactionTableProps) {
     const [editingTx, setEditingTx] = useState<Transaction | null>(null)
     const { mutateAsync: updateTransaction } = useUpdateTransaction()
     const { mutate: deleteTransaction } = useDeleteTransaction()
@@ -101,13 +191,14 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
         columnHelper.accessor('date', {
             header: 'Date',
             cell: (info) => formatDate(info.getValue()),
+            enableSorting: true,
         }),
         columnHelper.accessor('description', {
             header: 'Description',
             cell: (info) => (
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
-                        <span className="font-bold">{info.getValue()}</span>
+                        <span className="font-bold truncate max-w-[350px]">{info.getValue()}</span>
                         {info.row.original.manual_tag && (
                             <Badge variant="secondary" className="text-[10px] px-1 h-5 text-gray-500">
                                 {info.row.original.manual_tag}
@@ -123,6 +214,7 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
                     )}
                 </div>
             ),
+            enableSorting: true,
         }),
         columnHelper.accessor('cardholder', {
             header: () => <span className="hidden md:inline">Cardholder</span>,
@@ -140,9 +232,11 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
                     </div>
                 )
             },
+            enableSorting: false,
         }),
         columnHelper.accessor('category_name', {
             header: 'Category',
+            id: 'category',
             cell: (info) => {
                 const type = info.row.original.type
                 let variant: any = 'outline'
@@ -151,11 +245,12 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
                 else variant = 'secondary' // TRANSFER
 
                 return (
-                    <Badge variant={variant}>
+                    <Badge variant={variant} className="truncate max-w-[140px]">
                         {info.getValue() || info.row.original.category_legacy || 'Uncategorized'}
                     </Badge>
                 )
             },
+            enableSorting: true,
         }),
         columnHelper.accessor('source_type', {
             header: 'Source',
@@ -176,8 +271,10 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
                     </div>
                 )
             },
+            enableSorting: true,
         }),
         columnHelper.accessor('amount', {
+            id: 'amount',
             header: 'Amount',
             cell: (info) => {
                 const amount = info.getValue()
@@ -189,10 +286,12 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
 
                 return <div className={`text-right font-medium ${color}`}>{formatCurrency(amount)}</div>
             },
+            enableSorting: true,
         }),
         columnHelper.accessor('is_recurring', {
             header: 'Recurrence',
             cell: (info) => info.getValue() ? <Repeat className="h-4 w-4 text-gray-500" /> : null,
+            enableSorting: false,
         }),
         columnHelper.display({
             id: 'actions',
@@ -217,48 +316,63 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
         pageCount: pageCount,
         state: {
             pagination,
+            sorting,
         },
         onPaginationChange: setPagination,
+        onSortingChange: setSorting,
         manualPagination: true,
+        manualSorting: true,
     })
 
-    // Calculate sum of currently displayed rows (matches Bank Invoice if filtered by Source)
-    const filteredTotal = table.getRowModel().rows.reduce((sum, row) => {
-        // Exclude credit card bill payments as they serve to settle the balance, not part of "spending" sum for invoice check
-        if (row.original.description?.toLowerCase().includes('pagamento de fatura')) {
-            return sum
-        }
 
-        const val = Number(row.original.amount)
-        return sum + (isNaN(val) ? 0 : val)
-    }, 0)
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-end">
-                <div className="flex items-center gap-3 bg-card px-4 py-2 rounded-lg border shadow-sm">
-                    <span className="text-sm font-medium text-muted-foreground">Total Listado:</span>
-                    <span className={`text-lg font-bold ${filteredTotal >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {formatCurrency(filteredTotal)}
-                    </span>
-                </div>
-            </div>
 
-            <div className="rounded-md border">
+
+            <div className="rounded-md border h-[65vh] overflow-y-auto relative">
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-background z-20 shadow-sm">
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id}>
-                                        {header.isPlaceholder
-                                            ? null
-                                            : flexRender(
-                                                header.column.columnDef.header,
-                                                header.getContext()
+                                {headerGroup.headers.map((header) => {
+                                    return (
+                                        <TableHead key={header.id} className={
+                                            {
+                                                date: 'w-[100px]',
+                                                description: 'w-auto min-w-[200px]',
+                                                cardholder: 'w-[130px] hidden md:table-cell',
+                                                category: 'w-[150px]',
+                                                source_type: 'w-[140px] hidden md:table-cell',
+                                                amount: 'w-[120px]',
+                                                is_recurring: 'w-[80px]',
+                                                actions: 'w-[80px]'
+                                            }[header.id] || 'w-auto'
+                                        }>
+                                            {header.isPlaceholder ? null : (
+                                                <div
+                                                    className={
+                                                        header.column.getCanSort()
+                                                            ? 'cursor-pointer select-none flex items-center gap-1 hover:text-foreground'
+                                                            : ''
+                                                    }
+                                                    onClick={header.column.getToggleSortingHandler()}
+                                                >
+                                                    {flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext()
+                                                    )}
+                                                    {{
+                                                        asc: <ArrowUp className="h-3 w-3" />,
+                                                        desc: <ArrowDown className="h-3 w-3" />,
+                                                    }[header.column.getIsSorted() as string] ?? (
+                                                            header.column.getCanSort() ? <ArrowUpDown className="h-3 w-3 text-muted-foreground/30" /> : null
+                                                        )}
+                                                </div>
                                             )}
-                                    </TableHead>
-                                ))}
+                                        </TableHead>
+                                    )
+                                })}
                             </TableRow>
                         ))}
                     </TableHeader>
@@ -267,7 +381,18 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
                             table.getRowModel().rows.map((row) => (
                                 <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                                     {row.getVisibleCells().map((cell) => (
-                                        <TableCell key={cell.id}>
+                                        <TableCell key={cell.id} className={
+                                            {
+                                                date: 'w-[100px]',
+                                                description: 'w-auto min-w-[200px]',
+                                                cardholder: 'w-[130px] hidden md:table-cell',
+                                                category: 'w-[150px]',
+                                                source_type: 'w-[140px] hidden md:table-cell',
+                                                amount: 'w-[120px]',
+                                                is_recurring: 'w-[80px]',
+                                                actions: 'w-[80px]'
+                                            }[cell.column.id] || 'w-auto'
+                                        }>
                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                         </TableCell>
                                     ))}
@@ -343,7 +468,10 @@ export function TransactionTable({ data, pageCount, pagination, setPagination }:
                         </div>
                         <div className="grid gap-2">
                             <label htmlFor="category" className="text-sm font-medium">Category</label>
-                            <Input id="category" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} />
+                            <CategoryInput
+                                value={formData.category}
+                                onChange={(val) => setFormData({ ...formData, category: val })}
+                            />
                         </div>
                     </div>
                     <DialogFooter>

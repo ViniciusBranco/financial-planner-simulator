@@ -1,12 +1,25 @@
 import { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Select, Button } from "@/components/ui"
-import { useTransactions, useUpdateTransaction } from "@/hooks/useTransactions"
+import { useTransactions, useUpdateTransaction, useAutoCategorize } from "@/hooks/useTransactions"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export function TransactionList() {
     const [page, setPage] = useState(1)
-    const { data, isLoading } = useTransactions(page)
+    const { data, isLoading } = useTransactions({ skip: (page - 1) * 50, limit: 50 })
     const updateMutation = useUpdateTransaction()
+    const { mutate: autoCategorize, isPending: isCategorizing } = useAutoCategorize()
+
+    const handleAutoCategorize = () => {
+        autoCategorize(20, {
+            onSuccess: (res: any) => {
+                const msg = res.message || "Categorization complete."
+                alert(msg) // Simple feedback for now
+            },
+            onError: () => {
+                alert("Failed to run auto-categorization.")
+            }
+        })
+    }
 
     if (isLoading) return <div>Loading transactions...</div>
 
@@ -24,6 +37,23 @@ export function TransactionList() {
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold tracking-tight">Recent Transactions</h2>
                 <div className="flex items-center space-x-2">
+                    <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleAutoCategorize}
+                        disabled={isCategorizing}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                        {isCategorizing ? (
+                            <>
+                                <span className="animate-spin mr-2">🤖</span> AI Processing...
+                            </>
+                        ) : (
+                            <>
+                                <span className="mr-2">🤖</span> AI Auto-Categorize (Batch)
+                            </>
+                        )}
+                    </Button>
                     <Button
                         variant="outline"
                         size="sm"

@@ -11,6 +11,23 @@ class TransactionType(str, enum.Enum):
     EXPENSE = "EXPENSE"
     TRANSFER = "TRANSFER"
 
+class CategoryEnum(str, enum.Enum):
+    HOUSING = "Moradia"
+    DOGS = "Dogs"
+    FOOD = "Alimentação"
+    TRANSPORT = "Transporte"
+    HEALTH = "Saúde"
+    LEISURE = "Lazer"
+    STREAMING = "Streaming"
+    SUBSCRIPTIONS = "Assinaturas"
+    SHOPPING = "Compras/Vestuário"
+    EDUCATION = "Educação"
+    FINANCIAL = "Serviços Financeiros"
+    INVESTMENTS = "Investimentos"
+    SALARY = "Salário"
+    REVENUE = "Receita"
+    UNCATEGORIZED = "Não Categorizado"
+
 class Category(Base):
     __tablename__ = "categories"
 

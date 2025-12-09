@@ -6,7 +6,8 @@ from datetime import date, datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.transaction import Transaction, TransactionType, Category
+from app.models.transaction import Transaction, TransactionType, Category, CategoryEnum
+from app.services.categorizer import AICategorizer
 
 def parse_currency(value: Any) -> Optional[Decimal]:
     """
@@ -154,6 +155,16 @@ async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession
     """
     extracted = []
     
+    # Initialize Categorizer
+    categorizer = AICategorizer()
+    
+    # Pre-fetch categories map to avoid N+1 queries if possible, or query on the fly. 
+    # For now, let's query on the fly or maybe better, fetch all categories to a dict?
+    # Fetching all categories is safer and faster.
+    stmt_cats = select(Category)
+    res_cats = await session.execute(stmt_cats)
+    all_categories = {c.name: c.id for c in res_cats.scalars().all()}
+
     for idx, row in df.iterrows():
         try:
             # Parse Amount
@@ -192,8 +203,30 @@ async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession
             curr_inst, total_inst = parse_installment_column(inst_str)
             
             # Category
-            # Default to None/Uncategorized
-            category_id = None 
+            # AI Categorization Logic
+            predicted_category_name = None
+            category_id = None
+            
+            # Use AI to predict category
+            try:
+                # We prioritize the amount magnitude for context, but pass descriptive amount
+                predicted_category_name = await categorizer.predict_category(description, float(amount))
+                
+                # Resolve ID
+                if predicted_category_name in all_categories:
+                    category_id = all_categories[predicted_category_name]
+                else:
+                    # Fallback if AI gave a valid enum string but it's somehow not in DB (shouldn't happen due to seed)
+                    # Or check for 'Não Categorizado'
+                    if predicted_category_name == CategoryEnum.UNCATEGORIZED.value:
+                         category_id = all_categories.get(CategoryEnum.UNCATEGORIZED.value)
+                    else:
+                         # Try finding UNCAT
+                         category_id = all_categories.get(CategoryEnum.UNCATEGORIZED.value)
+            
+            except Exception as e:
+                print(f"AI Categorization error (ignoring): {e}")
+                category_id = all_categories.get(CategoryEnum.UNCATEGORIZED.value)
             
             extracted.append({
                 "date": tx_date,
@@ -205,8 +238,8 @@ async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession
                 "installment_total": total_inst,
                 "source_type": "XP_CARD",
                 "category_id": category_id,
-                "category_legacy": "Uncategorized", 
-                "manual_tag": None,
+                "category_legacy": predicted_category_name or "Uncategorized", 
+                "manual_tag": predicted_category_name, # Storing AI prediction here for reference
                 "is_recurring": (total_inst is not None and total_inst > 1),
                 "reference_date": reference_date,
                 "raw_data": {"source_filename": filename}
@@ -231,6 +264,16 @@ async def process_xp_account(df: pd.DataFrame, filename: str, session: AsyncSess
         desc_col = 'Lançamento'
     if desc_col not in df.columns and 'Lancamento' in df.columns:
         desc_col = 'Lancamento'
+
+    # Initialize Categorizer
+    categorizer = AICategorizer()
+    
+    # Pre-fetch categories map to avoid N+1 queries if possible, or query on the fly. 
+    # For now, let's query on the fly or maybe better, fetch all categories to a dict?
+    # Fetching all categories is safer and faster.
+    stmt_cats = select(Category)
+    res_cats = await session.execute(stmt_cats)
+    all_categories = {c.name: c.id for c in res_cats.scalars().all()}
 
     for idx, row in df.iterrows():
         try:
@@ -263,14 +306,30 @@ async def process_xp_account(df: pd.DataFrame, filename: str, session: AsyncSess
             if "pagamento de fatura" in description.lower():
                 tx_type = TransactionType.TRANSFER
             
+            # AI Categorization Logic
+            predicted_category_name = None
+            category_id = None
+            
+            try:
+                predicted_category_name = await categorizer.predict_category(description, float(amount))
+                 # Resolve ID
+                if predicted_category_name in all_categories:
+                    category_id = all_categories[predicted_category_name]
+                else:
+                     category_id = all_categories.get(CategoryEnum.UNCATEGORIZED.value)
+            except Exception as e:
+                print(f"AI Categorization error (ignoring): {e}")
+                category_id = all_categories.get(CategoryEnum.UNCATEGORIZED.value)
+
             extracted.append({
                 "date": tx_date,
                 "description": description,
                 "amount": amount,
                 "type": tx_type,
                 "source_type": "XP_ACCOUNT",
-                "category_id": None,
-                "category_legacy": "Uncategorized",
+                "category_id": category_id,
+                "category_legacy": predicted_category_name or "Uncategorized",
+                "manual_tag": predicted_category_name,
                 "is_recurring": False,
                 "reference_date": reference_date,
                 "raw_data": {"source_filename": filename}

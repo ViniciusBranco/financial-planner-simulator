@@ -1,17 +1,19 @@
 import { useState } from 'react'
-import { useTransactions, useCreateTransaction } from '@/hooks/useTransactions'
+import { useTransactions, useCreateTransaction, useAutoCategorize } from '@/hooks/useTransactions'
 import { TransactionTable } from '@/components/transactions/TransactionTable'
 import { Input, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui'
-import { PaginationState } from '@tanstack/react-table'
+import { PaginationState, SortingState } from '@tanstack/react-table'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { DataImport } from '@/features/transactions/components/DataImport'
-import { ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Bot } from 'lucide-react'
 
 export default function TransactionsPage() {
     const [pagination, setPagination] = useState<PaginationState>({
         pageIndex: 0,
         pageSize: 50,
     })
+    const [sorting, setSorting] = useState<SortingState>([]) // Default no sort (backend defaults to date desc)
+
     const [search, setSearch] = useState('')
     const [month, setMonth] = useState<number | undefined>(new Date().getMonth() + 1)
     const [year, setYear] = useState<number | undefined>(new Date().getFullYear())
@@ -63,6 +65,8 @@ export default function TransactionsPage() {
         search: search || undefined,
         is_recurring: isRecurringFilter,
         source_type: sourceType || undefined,
+        sort_by: sorting.length > 0 ? sorting[0].id : undefined,
+        sort_order: sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
     })
 
     const handleCreate = () => {
@@ -96,6 +100,19 @@ export default function TransactionsPage() {
         })
     }
 
+    const { mutate: autoCategorize, isPending: isCategorizing } = useAutoCategorize()
+    const handleAutoCategorize = () => {
+        autoCategorize(100, {
+            onSuccess: (res: any) => {
+                const msg = res.message || "Categorization complete."
+                alert(msg)
+            },
+            onError: () => {
+                alert("Failed to run auto-categorization.")
+            }
+        })
+    }
+
     return (
         <DashboardLayout>
             <div className="container mx-auto space-y-6">
@@ -106,6 +123,23 @@ export default function TransactionsPage() {
                             <p className="text-muted-foreground">Manage and view your financial transactions.</p>
                         </div>
                         <div className="flex items-center gap-2">
+                            <Button
+                                variant="default"
+                                size="sm"
+                                onClick={handleAutoCategorize}
+                                disabled={isCategorizing}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                            >
+                                {isCategorizing ? (
+                                    <>
+                                        <Bot className="h-4 w-4 animate-spin" /> Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Bot className="h-4 w-4" /> Auto-Categorize
+                                    </>
+                                )}
+                            </Button>
                             <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
                                 <Plus className="h-4 w-4" />
                                 New Transaction
@@ -129,78 +163,104 @@ export default function TransactionsPage() {
                     </div>
                 )}
 
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                    <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
+                    {/* Search - Left Aligned */}
+                    <div className="flex items-center gap-2 w-full xl:w-auto">
                         <Input
                             placeholder="Search description..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-[300px]"
+                            className="w-full md:w-[300px]"
                         />
                     </div>
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
+
+                    {/* Nav, Filters, and Total - Right Aligned (Cluster) */}
+                    <div className="flex flex-col md:flex-row items-center gap-4 w-full xl:w-auto justify-end">
+                        {/* Month/Year/Source Selection */}
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <select
+                                    className="flex h-9 items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 w-[140px]"
+                                    value={month}
+                                    onChange={(e) => setMonth(Number(e.target.value))}
+                                >
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                                        <option key={m} value={m}>
+                                            {new Date(2000, m - 1).toLocaleString('default', { month: 'long' })}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Button variant="ghost" size="icon" onClick={handleNextMonth}>
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
                             <select
-                                className="flex h-9 items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 w-[140px]"
-                                value={month}
-                                onChange={(e) => setMonth(Number(e.target.value))}
+                                className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 w-[100px]"
+                                value={year}
+                                onChange={(e) => setYear(Number(e.target.value))}
                             >
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                    <option key={m} value={m}>
-                                        {new Date(2000, m - 1).toLocaleString('default', { month: 'long' })}
-                                    </option>
+                                {years.map((y) => (
+                                    <option key={y} value={y}>{y}</option>
                                 ))}
                             </select>
-                            <Button variant="ghost" size="icon" onClick={handleNextMonth}>
-                                <ChevronRight className="h-4 w-4" />
+                            <select
+                                className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 w-[130px]"
+                                value={sourceType}
+                                onChange={(e) => setSourceType(e.target.value)}
+                            >
+                                <option value="">All Sources</option>
+                                <option value="XP_CARD">XP Card</option>
+                                <option value="XP_ACCOUNT">XP Account</option>
+                                <option value="MANUAL">Manual</option>
+                                <option value="RECURRING">Recurring</option>
+                            </select>
+                        </div>
+
+                        {/* Filter Type Buttons */}
+                        <div className="flex items-center gap-1 border rounded-md p-1">
+                            <Button
+                                variant={filterType === 'ALL' ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => setFilterType('ALL')}
+                            >
+                                All
+                            </Button>
+                            <Button
+                                variant={filterType === 'RECURRING' ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => setFilterType('RECURRING')}
+                            >
+                                Recurring
+                            </Button>
+                            <Button
+                                variant={filterType === 'VARIABLE' ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => setFilterType('VARIABLE')}
+                            >
+                                Variable
                             </Button>
                         </div>
-                        <select
-                            className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 w-[100px]"
-                            value={year}
-                            onChange={(e) => setYear(Number(e.target.value))}
-                        >
-                            {years.map((y) => (
-                                <option key={y} value={y}>{y}</option>
-                            ))}
-                        </select>
-                        <select
-                            className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 w-[130px]"
-                            value={sourceType}
-                            onChange={(e) => setSourceType(e.target.value)}
-                        >
-                            <option value="">All Sources</option>
-                            <option value="XP_CARD">XP Card</option>
-                            <option value="XP_ACCOUNT">XP Account</option>
-                            <option value="MANUAL">Manual</option>
-                            <option value="RECURRING">Recurring</option>
-                        </select>
-                    </div>
-                    <div className="flex items-center gap-1 border rounded-md p-1">
-                        <Button
-                            variant={filterType === 'ALL' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setFilterType('ALL')}
-                        >
-                            All
-                        </Button>
-                        <Button
-                            variant={filterType === 'RECURRING' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setFilterType('RECURRING')}
-                        >
-                            Recurring
-                        </Button>
-                        <Button
-                            variant={filterType === 'VARIABLE' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setFilterType('VARIABLE')}
-                        >
-                            Variable
-                        </Button>
+
+                        {/* Total Listado */}
+                        <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm whitespace-nowrap">
+                            <span className="text-sm font-medium text-muted-foreground">Total:</span>
+                            <span className={`text-base font-bold ${(data?.items || []).reduce((sum: number, row: any) => {
+                                if (row.description?.toLowerCase().includes('pagamento de fatura')) return sum
+                                const val = Number(row.amount)
+                                return sum + (isNaN(val) ? 0 : val)
+                            }, 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                    (data?.items || []).reduce((sum: number, row: any) => {
+                                        if (row.description?.toLowerCase().includes('pagamento de fatura')) return sum
+                                        const val = Number(row.amount)
+                                        return sum + (isNaN(val) ? 0 : val)
+                                    }, 0)
+                                )}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -214,6 +274,8 @@ export default function TransactionsPage() {
                         pageCount={data ? Math.ceil(data.total / data.size) : 0}
                         pagination={pagination}
                         setPagination={setPagination}
+                        sorting={sorting}
+                        setSorting={setSorting}
                     />
                 )}
 

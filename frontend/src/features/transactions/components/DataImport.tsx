@@ -253,7 +253,7 @@ export const DataImport: React.FC = () => {
                                 disabled={isPending || uploadStatus === 'success'}
                                 className="flex-1"
                             >
-                                {isPending ? "Processing Batch..." : `Upload ${selectedFiles.length} Files`}
+                                {isPending ? "Uploading & Categorizing with AI... (May take seconds)" : `Upload ${selectedFiles.length} Files`}
                             </Button>
                             <Button
                                 variant="outline"

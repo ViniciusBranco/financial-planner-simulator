@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "finances-backend"
+version = "0.1.0"
+description = "Personal Finance Management Backend"
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.100.0"
+uvicorn = "^0.23.0"
+sqlalchemy = "^2.0.0"
+asyncpg = "^0.28.0"
+pydantic = "^2.0.0"
+pydantic-settings = "^2.0.0"
+pandas = "^2.0.0"
+python-multipart = "^0.0.6"
+alembic = "^1.11.0"
+psycopg2-binary = "^2.9.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

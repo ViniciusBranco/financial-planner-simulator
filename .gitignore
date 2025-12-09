@@ -1,0 +1,81 @@
+# ==============================
+# DADOS SENSÍVEIS E ARQUIVOS PESSOAIS (CRÍTICO)
+# ==============================
+# Bloqueia todos os arquivos de dados financeiros na raiz e subpastas
+*.csv
+*.xls
+*.xlsx
+*.pdf
+*.zip
+*.rar
+
+# Exceção: Se você tiver algum CSV de exemplo/template que queira subir, 
+# descomente a linha abaixo e ajuste o nome:
+# !template_importacao.csv
+
+# ==============================
+# BACKEND (Python / FastAPI)
+# ==============================
+# Bytecode compilado
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes Virtuais
+.venv/
+venv/
+env/
+
+# Variáveis de Ambiente (Segredos)
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Logs e Banco de Dados Local (se houver)
+*.log
+*.sqlite3
+*.db
+
+# Diretórios de distribuição/build Python
+build/
+dist/
+*.egg-info/
+
+# ==============================
+# FRONTEND (Node / React / Vite)
+# ==============================
+# Dependências gigantescas
+node_modules/
+
+# Builds de produção
+dist/
+build/
+
+# Variáveis de Ambiente Frontend
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Logs de erro do gerenciador de pacotes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==============================
+# DOCKER & INFRA
+# ==============================
+# Se você mapeou volumes locais para o banco de dados (ex: ./pgdata)
+postgres_data/
+pgdata/
+
+# ==============================
+# IDE & SISTEMA OPERACIONAL
+# ==============================
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

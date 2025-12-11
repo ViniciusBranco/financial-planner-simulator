@@ -16,6 +16,7 @@ class TransactionBase(BaseModel):
     payment_method: Optional[str] = None
     manual_tag: Optional[str] = None
     is_recurring: bool = False
+    is_verified: bool = False
     
     metadata: Optional[Dict[str, Any]] = Field(default=None, alias="raw_data")
     
@@ -44,6 +45,7 @@ class TransactionUpdate(BaseModel):
     payment_method: Optional[str] = None
     manual_tag: Optional[str] = None
     is_recurring: Optional[bool] = None
+    is_verified: Optional[bool] = None
 
     @model_validator(mode='after')
     def check_amount_polarity(self):

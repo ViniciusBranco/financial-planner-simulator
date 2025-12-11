@@ -157,6 +157,7 @@ async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession
     
     # Initialize Categorizer
     categorizer = AICategorizer()
+    await categorizer.load_history(session)
     
     # Pre-fetch categories map to avoid N+1 queries if possible, or query on the fly. 
     # For now, let's query on the fly or maybe better, fetch all categories to a dict?
@@ -267,6 +268,7 @@ async def process_xp_account(df: pd.DataFrame, filename: str, session: AsyncSess
 
     # Initialize Categorizer
     categorizer = AICategorizer()
+    await categorizer.load_history(session)
     
     # Pre-fetch categories map to avoid N+1 queries if possible, or query on the fly. 
     # For now, let's query on the fly or maybe better, fetch all categories to a dict?

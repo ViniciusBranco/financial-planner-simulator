@@ -51,8 +51,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return null
 }
 
-export function FinancialOverview() {
-    const { data, isLoading } = useFinancialData(2025)
+export function FinancialOverview({ year }: { year: number }) {
+    const { data, isLoading } = useFinancialData(year)
 
     if (isLoading) {
         return (

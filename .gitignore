@@ -70,6 +70,7 @@ yarn-error.log*
 # Se você mapeou volumes locais para o banco de dados (ex: ./pgdata)
 postgres_data/
 pgdata/
+docker-compose.override.yml
 
 # ==============================
 # IDE & SISTEMA OPERACIONAL

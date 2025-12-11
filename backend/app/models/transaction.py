@@ -20,9 +20,10 @@ class CategoryEnum(str, enum.Enum):
     LEISURE = "Lazer"
     STREAMING = "Streaming"
     SUBSCRIPTIONS = "Assinaturas"
-    SHOPPING = "Compras/Vestuário"
+    SHOPPING = "Compras"
     EDUCATION = "Educação"
     FINANCIAL = "Serviços Financeiros"
+    DIVERSIFIED = "Serviços Diversos"
     INVESTMENTS = "Investimentos"
     SALARY = "Salário"
     REVENUE = "Receita"
@@ -58,6 +59,7 @@ class Transaction(Base):
     payment_method = Column(String, nullable=True) # e.g. "Flash", "Alelo", "CC"
     manual_tag = Column(String, nullable=True) # e.g. "Classif" from CSV
     is_recurring = Column(Boolean, default=False, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
     
     raw_data = Column("metadata", JSON, nullable=True) 
 

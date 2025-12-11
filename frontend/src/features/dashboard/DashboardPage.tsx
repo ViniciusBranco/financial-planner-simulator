@@ -2,7 +2,7 @@ import { useState } from "react"
 import { DashboardLayout } from "@/components/DashboardLayout"
 import { KPICards } from "./components/KPICards"
 import { FinancialOverview } from "./components/FinancialOverview"
-import { SourceBreakdown } from "./components/SourceBreakdown"
+import { CategoryBreakdownMonthly } from "./components/SourceBreakdown"
 import { CategoryBreakdown } from "./components/CategoryBreakdown"
 import { useDashboardSummary, useDashboardBreakdown } from "@/hooks/useTransactions"
 
@@ -50,11 +50,11 @@ export function DashboardPage() {
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                    <FinancialOverview />
+                    <FinancialOverview year={year} />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                    <SourceBreakdown data={breakdown?.by_source || {}} />
+                    <CategoryBreakdownMonthly year={year} />
                     <CategoryBreakdown data={breakdown?.by_category || []} />
                 </div>
             </div>

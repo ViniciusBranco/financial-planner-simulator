@@ -20,6 +20,7 @@ export type Transaction = {
     installment_n?: number
     installment_total?: number
     source_type?: string
+    is_verified?: boolean
 }
 
 export interface TransactionFilters {
@@ -33,6 +34,7 @@ export interface TransactionFilters {
     source_type?: string;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
+    unverified_only?: boolean;
 }
 
 export type TransactionResponse = {
@@ -54,6 +56,7 @@ async function fetchTransactions(filters: TransactionFilters): Promise<Transacti
     if (filters.source_type) params.append('source_type', filters.source_type)
     if (filters.sort_by) params.append('sort_by', filters.sort_by)
     if (filters.sort_order) params.append('sort_order', filters.sort_order)
+    if (filters.unverified_only) params.append('unverified_only', 'true')
 
     console.log("Fetching transactions with params:", params.toString())
 
@@ -90,7 +93,9 @@ type TransactionUpdateInput = {
     category?: string
     category_legacy?: string
     category_id?: string
+    manual_tag?: string
     type?: 'INCOME' | 'EXPENSE' | 'TRANSFER'
+    is_verified?: boolean
 }
 
 async function updateTransaction(data: TransactionUpdateInput) {
@@ -125,6 +130,27 @@ export function useUpdateTransaction() {
     const queryClient = useQueryClient()
     return useMutation({
         mutationFn: updateTransaction,
+        onMutate: async (newData) => {
+            await queryClient.cancelQueries({ queryKey: ['transactions'] })
+            const previousTransactions = queryClient.getQueryData(['transactions'])
+
+            queryClient.setQueriesData({ queryKey: ['transactions'] }, (old: any) => {
+                if (!old || !old.items) return old
+                return {
+                    ...old,
+                    items: old.items.map((tx: Transaction) =>
+                        tx.id === newData.id ? { ...tx, ...newData, is_verified: true } : tx
+                    )
+                }
+            })
+
+            return { previousTransactions }
+        },
+        onError: (_err, _newData, context) => {
+            if (context?.previousTransactions) {
+                queryClient.setQueryData(['transactions'], context.previousTransactions)
+            }
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })
@@ -451,8 +477,14 @@ export function useSimulationProjection(scenarioId?: number | null) {
     })
 }
 
-async function autoCategorizeTransactions(limit: number = 20) {
-    const res = await fetch(`${API_URL}/transactions/auto-categorize?limit=${limit}`, {
+async function autoCategorizeTransactions(params: { limit?: number, month?: number, year?: number, force?: boolean } = {}) {
+    const queryParams = new URLSearchParams()
+    if (params.limit) queryParams.append('limit', params.limit.toString())
+    if (params.month) queryParams.append('month', params.month.toString())
+    if (params.year) queryParams.append('year', params.year.toString())
+    if (params.force) queryParams.append('force', 'true')
+
+    const res = await fetch(`${API_URL}/transactions/auto-categorize?${queryParams}`, {
         method: 'POST',
     })
     if (!res.ok) throw new Error('Failed to auto-categorize transactions')
@@ -463,6 +495,44 @@ export function useAutoCategorize() {
     const queryClient = useQueryClient()
     return useMutation({
         mutationFn: autoCategorizeTransactions,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard_breakdown'] })
+        },
+    })
+}
+
+async function batchDeleteTransactions(params: { month: number, year: number, source_type?: string, category_id?: string }) {
+    const queryParams = new URLSearchParams()
+    queryParams.append('month', params.month.toString())
+    queryParams.append('year', params.year.toString())
+    if (params.source_type) queryParams.append('source_type', params.source_type)
+    if (params.category_id) queryParams.append('category_id', params.category_id)
+
+    const res = await fetch(`${API_URL}/transactions/batch-delete?${queryParams}`, {
+        method: 'DELETE',
+    })
+    if (!res.ok) {
+        let errorMessage = 'Failed to batch delete transactions'
+        try {
+            const errorBody = await res.json()
+            if (errorBody.detail) {
+                errorMessage += ` ${JSON.stringify(errorBody.detail)}`
+            }
+        } catch (e) {
+            const text = await res.text()
+            if (text) errorMessage += `: ${text}`
+        }
+        throw new Error(errorMessage)
+    }
+    return res.json()
+}
+
+export function useBatchDeleteTransactions() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: batchDeleteTransactions,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })

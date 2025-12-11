@@ -1,18 +1,21 @@
 import { useState } from 'react'
-import { useTransactions, useCreateTransaction, useAutoCategorize } from '@/hooks/useTransactions'
+import { useTransactions, useCreateTransaction } from '@/hooks/useTransactions'
 import { TransactionTable } from '@/components/transactions/TransactionTable'
 import { Input, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui'
 import { PaginationState, SortingState } from '@tanstack/react-table'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { DataImport } from '@/features/transactions/components/DataImport'
-import { ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Bot } from 'lucide-react'
+import { AICategorizeDialog } from '@/components/transactions/AICategorizeDialog'
+import { BulkDeleteDialog } from '@/components/transactions/BulkDeleteDialog'
+import { CategoryInput } from '@/components/transactions/CategoryInput'
+import { ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Bot, Trash2, Sparkles } from 'lucide-react'
 
 export default function TransactionsPage() {
     const [pagination, setPagination] = useState<PaginationState>({
         pageIndex: 0,
         pageSize: 50,
     })
-    const [sorting, setSorting] = useState<SortingState>([]) // Default no sort (backend defaults to date desc)
+    const [sorting, setSorting] = useState<SortingState>([])
 
     const [search, setSearch] = useState('')
     const [month, setMonth] = useState<number | undefined>(new Date().getMonth() + 1)
@@ -20,6 +23,9 @@ export default function TransactionsPage() {
     const [filterType, setFilterType] = useState<'ALL' | 'RECURRING' | 'VARIABLE'>('ALL')
     const [showImport, setShowImport] = useState(false)
     const [sourceType, setSourceType] = useState<string>('')
+    const [isAIDialogOpen, setIsAIDialogOpen] = useState(false)
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+    const [showUnverifiedOnly, setShowUnverifiedOnly] = useState(false)
 
     const handlePrevMonth = () => {
         if (!month || !year) return
@@ -44,7 +50,6 @@ export default function TransactionsPage() {
     const currentYear = new Date().getFullYear()
     const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
 
-    // Create Modal State
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const { mutate: createTransaction } = useCreateTransaction()
     const [newTx, setNewTx] = useState({
@@ -67,6 +72,7 @@ export default function TransactionsPage() {
         source_type: sourceType || undefined,
         sort_by: sorting.length > 0 ? sorting[0].id : undefined,
         sort_order: sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
+        unverified_only: showUnverifiedOnly
     })
 
     const handleCreate = () => {
@@ -75,7 +81,6 @@ export default function TransactionsPage() {
         let amountVal = parseFloat(newTx.amount)
         if (isNaN(amountVal)) return
 
-        // Auto-correct sign based on type
         if (newTx.type === 'EXPENSE' && amountVal > 0) amountVal = -amountVal
         if (newTx.type === 'INCOME' && amountVal < 0) amountVal = -amountVal
 
@@ -100,19 +105,6 @@ export default function TransactionsPage() {
         })
     }
 
-    const { mutate: autoCategorize, isPending: isCategorizing } = useAutoCategorize()
-    const handleAutoCategorize = () => {
-        autoCategorize(100, {
-            onSuccess: (res: any) => {
-                const msg = res.message || "Categorization complete."
-                alert(msg)
-            },
-            onError: () => {
-                alert("Failed to run auto-categorization.")
-            }
-        })
-    }
-
     return (
         <DashboardLayout>
             <div className="container mx-auto space-y-6">
@@ -124,21 +116,20 @@ export default function TransactionsPage() {
                         </div>
                         <div className="flex items-center gap-2">
                             <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => setIsDeleteOpen(true)}
+                                title="Batch Delete"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
                                 variant="default"
                                 size="sm"
-                                onClick={handleAutoCategorize}
-                                disabled={isCategorizing}
+                                onClick={() => setIsAIDialogOpen(true)}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
                             >
-                                {isCategorizing ? (
-                                    <>
-                                        <Bot className="h-4 w-4 animate-spin" /> Processing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Bot className="h-4 w-4" /> Auto-Categorize
-                                    </>
-                                )}
+                                <Bot className="h-4 w-4" /> AI Manager
                             </Button>
                             <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
                                 <Plus className="h-4 w-4" />
@@ -164,7 +155,6 @@ export default function TransactionsPage() {
                 )}
 
                 <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
-                    {/* Search - Left Aligned */}
                     <div className="flex items-center gap-2 w-full xl:w-auto">
                         <Input
                             placeholder="Search description..."
@@ -172,11 +162,18 @@ export default function TransactionsPage() {
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full md:w-[300px]"
                         />
+                        <Button
+                            variant={showUnverifiedOnly ? "default" : "outline"}
+                            size="icon"
+                            onClick={() => setShowUnverifiedOnly(!showUnverifiedOnly)}
+                            title={showUnverifiedOnly ? "Show All Transactions" : "Show AI Suggestions Only (Unverified)"}
+                            className={showUnverifiedOnly ? "bg-purple-600 hover:bg-purple-700 text-white border-purple-600" : "text-gray-500"}
+                        >
+                            <Sparkles className={`h-4 w-4 ${showUnverifiedOnly ? "fill-current" : ""}`} />
+                        </Button>
                     </div>
 
-                    {/* Nav, Filters, and Total - Right Aligned (Cluster) */}
                     <div className="flex flex-col md:flex-row items-center gap-4 w-full xl:w-auto justify-end">
-                        {/* Month/Year/Source Selection */}
                         <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
@@ -219,7 +216,6 @@ export default function TransactionsPage() {
                             </select>
                         </div>
 
-                        {/* Filter Type Buttons */}
                         <div className="flex items-center gap-1 border rounded-md p-1">
                             <Button
                                 variant={filterType === 'ALL' ? 'default' : 'ghost'}
@@ -244,7 +240,6 @@ export default function TransactionsPage() {
                             </Button>
                         </div>
 
-                        {/* Total Listado */}
                         <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm whitespace-nowrap">
                             <span className="text-sm font-medium text-muted-foreground">Total:</span>
                             <span className={`text-base font-bold ${(data?.items || []).reduce((sum: number, row: any) => {
@@ -285,6 +280,7 @@ export default function TransactionsPage() {
                             <DialogTitle>New Transaction</DialogTitle>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
+                            <iframe src="about:blank" style={{ display: "none" }}></iframe>
                             <div className="grid gap-2">
                                 <label htmlFor="new-date" className="text-sm font-medium">Date</label>
                                 <Input id="new-date" type="date" value={newTx.date} onChange={(e) => setNewTx({ ...newTx, date: e.target.value })} />
@@ -321,7 +317,10 @@ export default function TransactionsPage() {
                             </div>
                             <div className="grid gap-2">
                                 <label htmlFor="new-category" className="text-sm font-medium">Category</label>
-                                <Input id="new-category" value={newTx.category} onChange={(e) => setNewTx({ ...newTx, category: e.target.value })} />
+                                <CategoryInput
+                                    value={newTx.category}
+                                    onChange={(val) => setNewTx({ ...newTx, category: val })}
+                                />
                             </div>
                         </div>
                         <DialogFooter>
@@ -330,6 +329,20 @@ export default function TransactionsPage() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                <AICategorizeDialog
+                    isOpen={isAIDialogOpen}
+                    onClose={() => setIsAIDialogOpen(false)}
+                    currentMonth={month}
+                    currentYear={year}
+                />
+
+                <BulkDeleteDialog
+                    isOpen={isDeleteOpen}
+                    onClose={() => setIsDeleteOpen(false)}
+                    currentMonth={month}
+                    currentYear={year}
+                />
             </div>
         </DashboardLayout>
     )

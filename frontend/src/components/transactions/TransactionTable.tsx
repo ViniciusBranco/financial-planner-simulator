@@ -9,7 +9,8 @@ import {
 } from '@tanstack/react-table'
 import { Transaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Input } from '@/components/ui'
-import { Repeat, ArrowLeft, ArrowRight, Pencil, Trash, CreditCard, Wallet, User, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react'
+import { Repeat, ArrowLeft, ArrowRight, Pencil, Trash, CreditCard, Wallet, User, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, Check, Sparkles } from 'lucide-react'
+import { CategoryInput } from './CategoryInput'
 
 // Helper to format currency
 const formatCurrency = (amount: number) => {
@@ -27,92 +28,7 @@ const formatDate = (dateString: string) => {
     return `${day}/${month}/${year}`
 }
 
-const CATEGORY_OPTIONS = [
-    "Moradia",
-    "Dogs",
-    "Alimentação",
-    "Transporte",
-    "Saúde",
-    "Lazer",
-    "Streaming",
-    "Assinaturas",
-    "Compras/Vestuário",
-    "Educação",
-    "Serviços Financeiros",
-    "Investimentos",
-    "Salário",
-    "Receita",
-    "Não Categorizado"
-]
 
-function CategoryInput({ value, onChange }: { value: string, onChange: (val: string) => void }) {
-    const [open, setOpen] = useState(false)
-    const [showAll, setShowAll] = useState(false)
-    const ref = React.useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (ref.current && !ref.current.contains(event.target as Node)) {
-                setOpen(false)
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside)
-        return () => document.removeEventListener("mousedown", handleClickOutside)
-    }, [])
-
-    const filteredOptions = useMemo(() => {
-        if (showAll) return CATEGORY_OPTIONS
-        const lower = value.toLowerCase()
-        return CATEGORY_OPTIONS.filter(cat => cat.toLowerCase().includes(lower))
-    }, [value, showAll])
-
-    const handleSelect = (cat: string) => {
-        onChange(cat)
-        setOpen(false)
-    }
-
-    return (
-        <div className="relative" ref={ref}>
-            <div className="relative">
-                <Input
-                    value={value}
-                    onChange={(e) => {
-                        onChange(e.target.value)
-                        setOpen(true)
-                        setShowAll(false)
-                    }}
-                    placeholder="Select or type category..."
-                    className="pr-10"
-                />
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                        setOpen(!open)
-                        if (!open) setShowAll(true)
-                    }}
-                >
-                    <ChevronDown className="h-4 w-4" />
-                </Button>
-            </div>
-            {open && filteredOptions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-md max-h-[200px] overflow-auto py-1">
-                    {filteredOptions.map((cat) => (
-                        <div
-                            key={cat}
-                            className="px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                            onClick={() => handleSelect(cat)}
-                        >
-                            {cat}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}
 
 const columnHelper = createColumnHelper<Transaction>()
 
@@ -136,6 +52,7 @@ export function TransactionTable({ data, pageCount, pagination, setPagination, s
         amount: '',
         date: '',
         category: '',
+        manual_tag: '',
         type: 'EXPENSE' as 'INCOME' | 'EXPENSE' | 'TRANSFER'
     })
 
@@ -146,6 +63,7 @@ export function TransactionTable({ data, pageCount, pagination, setPagination, s
                 amount: String(editingTx.amount),
                 date: editingTx.date,
                 category: editingTx.category_name || editingTx.category_legacy || '',
+                manual_tag: editingTx.manual_tag || '',
                 type: editingTx.type
             })
         }
@@ -172,7 +90,8 @@ export function TransactionTable({ data, pageCount, pagination, setPagination, s
                 amount: amountVal,
                 date: formData.date,
                 type: formData.type,
-                category_legacy: formData.category // Sends as category (legacy) for now or update backend to handle renaming
+                category_legacy: formData.category,
+                manual_tag: formData.manual_tag
             })
             setEditingTx(null)
         } catch (error: any) {
@@ -239,14 +158,32 @@ export function TransactionTable({ data, pageCount, pagination, setPagination, s
             id: 'category',
             cell: (info) => {
                 const type = info.row.original.type
+                const isVerified = info.row.original.is_verified
                 let variant: any = 'outline'
                 if (type === 'INCOME') variant = 'success'
                 else if (type === 'EXPENSE') variant = 'warning'
                 else variant = 'secondary' // TRANSFER
 
+                const categoryText = info.getValue() || info.row.original.category_legacy || 'Uncategorized'
+
                 return (
-                    <Badge variant={variant} className="truncate max-w-[140px]">
-                        {info.getValue() || info.row.original.category_legacy || 'Uncategorized'}
+                    <Badge
+                        variant={variant}
+                        className="truncate max-w-[140px] gap-1 pr-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            if (!isVerified) {
+                                updateTransaction({ id: info.row.original.id, is_verified: true })
+                            }
+                        }}
+                        title={isVerified ? "Verified by User" : "AI Suggestion (Click to Verify)"}
+                    >
+                        {categoryText}
+                        {isVerified ? (
+                            <Check className="h-3 w-3" />
+                        ) : (
+                            <Sparkles className="h-3 w-3 text-purple-600 animate-pulse" />
+                        )}
                     </Badge>
                 )
             },
@@ -307,7 +244,7 @@ export function TransactionTable({ data, pageCount, pagination, setPagination, s
                 </div>
             ),
         }),
-    ], [])
+    ], [updateTransaction])
 
     const table = useReactTable({
         data,
@@ -470,7 +407,11 @@ export function TransactionTable({ data, pageCount, pagination, setPagination, s
                             <label htmlFor="category" className="text-sm font-medium">Category</label>
                             <CategoryInput
                                 value={formData.category}
-                                onChange={(val) => setFormData({ ...formData, category: val })}
+                                onChange={(val) => setFormData({
+                                    ...formData,
+                                    category: val,
+                                    manual_tag: val // Sync manual_tag with category
+                                })}
                             />
                         </div>
                     </div>

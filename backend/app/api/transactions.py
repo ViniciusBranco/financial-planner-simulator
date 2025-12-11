@@ -28,9 +28,10 @@ async def get_transactions(
     is_recurring: Optional[bool] = None,
     source_type: Optional[str] = None,
     sort_by: Optional[str] = Query("date", regex="^(date|amount|description|category|source_type)$"),
-    sort_order: Optional[str] = Query("desc", regex="^(asc|desc)$")
+    sort_order: Optional[str] = Query("desc", regex="^(asc|desc)$"),
+    unverified_only: bool = False
 ):
-    print(f"DEBUG: get_transactions sort_by={sort_by} sort_order={sort_order}")
+    print(f"DEBUG: get_transactions sort_by={sort_by} sort_order={sort_order} unverified_only={unverified_only}")
     # Start with a join to get category details efficiently
     query = select(Transaction, Category.name.label("category_name")).outerjoin(
         Category, Transaction.category_id == Category.id
@@ -51,6 +52,8 @@ async def get_transactions(
         query = query.filter(Transaction.is_recurring == is_recurring)
     if source_type:
         query = query.filter(Transaction.source_type == source_type)
+    if unverified_only:
+        query = query.filter(Transaction.is_verified == False)
         
     # Count total
     # We need to be careful with the count query when using joins
@@ -246,6 +249,7 @@ async def update_transaction(
     for key, value in update_data.items():
         setattr(db_transaction, key, value)
         
+    db_transaction.is_verified = True
     await db.commit()
     await db.refresh(db_transaction)
     
@@ -261,6 +265,37 @@ async def update_transaction(
          pass 
 
     return db_transaction
+
+@router.delete("/batch-delete")
+async def batch_delete_transactions(
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(..., ge=2000),
+    source_type: Optional[str] = None,
+    category_id: Optional[UUID] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    _, last_day = calendar.monthrange(year, month)
+    start_date = date(year, month, 1)
+    end_date = date(year, month, last_day)
+
+    stmt = delete(Transaction).where(
+        Transaction.reference_date >= start_date,
+        Transaction.reference_date <= end_date
+    )
+
+    if source_type:
+        stmt = stmt.where(Transaction.source_type == source_type)
+    
+    if category_id:
+        stmt = stmt.where(Transaction.category_id == category_id)
+
+    result = await db.execute(stmt)
+    await db.commit()
+    
+    return {
+        "deleted_count": result.rowcount,
+        "message": f"Deleted {result.rowcount} transactions"
+    }
 
 @router.delete("/{transaction_id}", status_code=204)
 async def delete_transaction(
@@ -292,9 +327,14 @@ async def bulk_delete_transactions(
     await db.execute(stmt)
     await db.commit()
     return None
+
+
 @router.post("/auto-categorize")
 async def auto_categorize_transactions(
     limit: int = Query(100, ge=1, le=100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    year: Optional[int] = Query(None, ge=2000),
+    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
     from app.services.categorizer import AICategorizer
@@ -302,6 +342,7 @@ async def auto_categorize_transactions(
     
     # Initialize Categorizer
     categorizer = AICategorizer()
+    await categorizer.load_history(db)
     
     # 1. Get ID for "Não Categorizado"
     stmt_uncat = select(Category).where(Category.name == CategoryEnum.UNCATEGORIZED.value)
@@ -313,11 +354,41 @@ async def auto_categorize_transactions(
         
     uncat_id = uncat_category.id
     
-    # 2. Fetch transactions to categorize
-    # Criteria: category_id is NULL OR category_id == uncat_id
-    stmt_tx = select(Transaction).where(
-        (Transaction.category_id == None) | (Transaction.category_id == uncat_id)
-    ).limit(limit)
+    # 2. Build Query
+    stmt_tx = select(Transaction)
+    
+    if month and year:
+        # Month-specific mode
+        _, last_day = calendar.monthrange(year, month)
+        start_date = date(year, month, 1)
+        end_date = date(year, month, last_day)
+        
+        stmt_tx = stmt_tx.where(
+            Transaction.reference_date >= start_date,
+            Transaction.reference_date <= end_date
+        )
+        
+        if not force:
+            # Only uncat
+            stmt_tx = stmt_tx.where(
+                (Transaction.category_id == None) | (Transaction.category_id == uncat_id)
+            )
+        else:
+            # Force mode: re-evaluate ALL transactions in that month
+            # BUT: Do not overwrite verified transactions
+            stmt_tx = stmt_tx.where(Transaction.is_verified == False)
+            
+        # If month/year is specified, we might want to process ALL of them, not just 100.
+        # But to be safe, maybe increase limit or just remove it? 
+        # User said "Select ALL".
+        # We won't apply .limit(limit) here.
+        
+    else:
+        # Standard mode: Next N uncategorized
+        # Also ensure we don't pick up verified ones that happen to be uncategorized (unlikely but possible)
+        stmt_tx = stmt_tx.where(
+            (Transaction.category_id == None) | (Transaction.category_id == uncat_id)
+        ).where(Transaction.is_verified == False).limit(limit)
     
     result_tx = await db.execute(stmt_tx)
     transactions = result_tx.scalars().all()
@@ -340,7 +411,7 @@ async def auto_categorize_transactions(
             if not tx.description: 
                 continue
                 
-            predicted_name = await categorizer.predict_category(tx.description, float(tx.amount))
+            predicted_name = await categorizer.predict_category(tx.description, float(tx.amount), db=db)
             
             # If AI returns UNCAT, we don't need to change anything if it's already UNCAT.
             # But if it was NULL, we should set it to UNCAT ID.
@@ -358,6 +429,7 @@ async def auto_categorize_transactions(
                 tx.category_id = new_cat_id
                 tx.category_legacy = predicted_name
                 tx.manual_tag = predicted_name # Store AI guess
+                tx.is_verified = False # Automatic classification is not verified
                 updated_count += 1
             elif tx.category_id == uncat_id and new_cat_id == uncat_id:
                  # It was UNCAT, and AI said UNCAT. 

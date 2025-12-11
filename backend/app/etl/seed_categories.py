@@ -20,6 +20,7 @@ CATEGORY_TYPE_MAP = {
     CategoryEnum.SHOPPING: TransactionType.EXPENSE,
     CategoryEnum.EDUCATION: TransactionType.EXPENSE,
     CategoryEnum.FINANCIAL: TransactionType.EXPENSE,
+    CategoryEnum.DIVERSIFIED: TransactionType.EXPENSE,
     CategoryEnum.INVESTMENTS: TransactionType.EXPENSE,  # User can change to TRANSFER if preferred
     CategoryEnum.SALARY: TransactionType.INCOME,
     CategoryEnum.REVENUE: TransactionType.INCOME,

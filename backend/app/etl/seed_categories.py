@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 CATEGORY_TYPE_MAP = {
     CategoryEnum.HOUSING: TransactionType.EXPENSE,
     CategoryEnum.DOGS: TransactionType.EXPENSE,
+    CategoryEnum.GROCERIES: TransactionType.EXPENSE,
+    CategoryEnum.RESTAURANT: TransactionType.EXPENSE,
+    CategoryEnum.DELIVERY: TransactionType.EXPENSE,
     CategoryEnum.FOOD: TransactionType.EXPENSE,
     CategoryEnum.TRANSPORT: TransactionType.EXPENSE,
     CategoryEnum.HEALTH: TransactionType.EXPENSE,

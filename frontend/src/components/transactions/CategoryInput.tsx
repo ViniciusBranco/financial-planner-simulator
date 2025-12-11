@@ -5,7 +5,9 @@ import { ChevronDown } from 'lucide-react'
 export const CATEGORY_OPTIONS = [
     "Moradia",
     "Dogs",
-    "Alimentação",
+    "Mercado",
+    "Restaurante",
+    "Delivery",
     "Transporte",
     "Saúde",
     "Lazer",
@@ -18,6 +20,7 @@ export const CATEGORY_OPTIONS = [
     "Investimentos",
     "Salário",
     "Receita",
+    "Alimentação",
     "Não Categorizado"
 ]
 

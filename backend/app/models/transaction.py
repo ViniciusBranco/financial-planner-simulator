@@ -14,7 +14,9 @@ class TransactionType(str, enum.Enum):
 class CategoryEnum(str, enum.Enum):
     HOUSING = "Moradia"
     DOGS = "Dogs"
-    FOOD = "Alimentação"
+    GROCERIES = "Mercado"
+    RESTAURANT = "Restaurante"
+    DELIVERY = "Delivery"
     TRANSPORT = "Transporte"
     HEALTH = "Saúde"
     LEISURE = "Lazer"
@@ -27,6 +29,7 @@ class CategoryEnum(str, enum.Enum):
     INVESTMENTS = "Investimentos"
     SALARY = "Salário"
     REVENUE = "Receita"
+    FOOD = "Alimentação"
     UNCATEGORIZED = "Não Categorizado"
 
 class Category(Base):

@@ -1,8 +1,9 @@
+
 import { useState, useMemo, useEffect } from "react"
 import { DashboardLayout } from "@/components/DashboardLayout"
-import { useSimulationProjection, SimulationItem, useScenarios, useCreateScenario, useAddScenarioItem } from "@/hooks/useTransactions"
-import { Card, CardContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Input, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Badge } from "@/components/ui"
-import { Plus, Trash, RotateCcw, Save, Loader2, Database } from "lucide-react"
+import { useSimulationProjection, SimulationItem, useScenarios, useCreateScenario, useAddScenarioItem, useAverageSpending, useDeleteScenario } from "@/hooks/useTransactions"
+import { Card, CardContent, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Input, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Badge, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui"
+import { Plus, Trash, RotateCcw, Save, Loader2, Database, Sparkles, Trash2 } from "lucide-react"
 import { RecurringTransactionDialog } from '@/features/recurring/components/RecurringTransactionDialog'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -11,26 +12,75 @@ export function SimulationPage() {
     const { data: scenarios } = useScenarios()
     const { data, isLoading } = useSimulationProjection(selectedScenarioId)
     const queryClient = useQueryClient()
+    const { refetch: fetchAverage } = useAverageSpending()
+    const deleteScenario = useDeleteScenario()
 
     const [items, setItems] = useState<SimulationItem[]>([])
+
+    // NOTE: 'items' state represents the GROUPED view.
+    // When saving, we iterate over these grouped items and "explode" them back into 
+    // discrete monthly ScenarioItems for any non-zero value.
+    // This allows the Pivot Table UX (one row, many columns) to map correctly to the DB model (many rows, time-based).
     const [isAddOpen, setIsAddOpen] = useState(false)
     const [isSaveOpen, setIsSaveOpen] = useState(false)
     const [isBaselineAddOpen, setIsBaselineAddOpen] = useState(false)
     const [newScenarioName, setNewScenarioName] = useState("")
 
+    // Project Variable Spend State
+    const [isProjectOpen, setIsProjectOpen] = useState(false)
+    const [projectAmount, setProjectAmount] = useState<number>(0)
+
+    // Delete Scenario State
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+
+
     const createScenario = useCreateScenario()
     const addScenarioItem = useAddScenarioItem()
 
-    // Initial Load & Scenario Switch
+    // Initial Load & Scenario Switch: Group Items for Pivot View
     useEffect(() => {
-        if (data) {
-            setItems(JSON.parse(JSON.stringify(data.items)))
+        if (data && data.items) {
+            const rawItems = JSON.parse(JSON.stringify(data.items)) as SimulationItem[]
+            const groupedMap = new Map<string, SimulationItem>()
+
+            rawItems.forEach(item => {
+                // Key excludes 'values' but includes identifying metadata to group rows
+                // We normalize the name to ensure "Despesas Variáveis" matches regardless of minor differences if any,
+                // but strictly grouping by exact name is safer for now.
+                const key = `${item.name.trim()}| ${item.type}| ${item.source} `
+
+                if (groupedMap.has(key)) {
+                    const existing = groupedMap.get(key)!
+                    // Merge values: sum them up column by column
+                    // This creates the "Pivot" effect where multiple monthly items become one row with values spread across columns
+                    const newValues = existing.values.map((v, i) => v + (item.values[i] || 0))
+                    existing.values = newValues
+                } else {
+                    // Initialize with a copy to avoid reference issues
+                    groupedMap.set(key, { ...item, values: [...item.values] })
+                }
+            })
+
+            setItems(Array.from(groupedMap.values()))
         }
     }, [data])
 
     const handleReset = () => {
         if (confirm("Reset all changes and reload from baseline?")) {
             if (data) setItems(JSON.parse(JSON.stringify(data.items)))
+        }
+    }
+
+    const handleDeleteScenario = async () => {
+        if (selectedScenarioId) {
+            try {
+                await deleteScenario.mutateAsync(selectedScenarioId)
+                setSelectedScenarioId(null)
+                setIsDeleteDialogOpen(false)
+            } catch (error) {
+                console.error("Failed to delete scenario", error)
+                alert("Failed to delete scenario")
+            }
         }
     }
 
@@ -162,6 +212,71 @@ export function SimulationPage() {
         }
     }
 
+    const handleProjectVariableSpend = async () => {
+        try {
+            const { data } = await fetchAverage()
+            if (data) {
+                setProjectAmount(Math.round(data.average)) // Round for nicer UX
+                setIsProjectOpen(true)
+            }
+        } catch (e) {
+            alert("Failed to fetch average spending")
+        }
+    }
+
+    const confirmProjectVariableSpend = async () => {
+        try {
+            // 1. Create Scenario
+            const scenarioName = "Orçamento Variável (Estimado)"
+            const scenario = await createScenario.mutateAsync({ name: scenarioName })
+
+            // 2. Add Item: "Despesas Variáveis (Não Parceladas)"
+            // Start Next Month -> End of Year (or 12 months?)
+            // Prompt says: "Next month until Dec 2026"
+
+            const today = new Date()
+            const year = today.getFullYear()
+            const targetEndYear = 2026
+            const targetEndMonth = 11 // Dec
+
+            // Calculate starting month (Next Month)
+            let currentIterDate = new Date(year, today.getMonth() + 1, 1)
+            const endDate = new Date(targetEndYear, targetEndMonth, 1)
+
+            const promises: Promise<any>[] = []
+
+            while (currentIterDate <= endDate) {
+                const dateStr = currentIterDate.toISOString().split('T')[0]
+                const finalAmount = -Math.abs(Number(projectAmount))
+
+                promises.push(addScenarioItem.mutateAsync({
+                    scenarioId: scenario.id,
+                    item: {
+                        description: "Despesas Variáveis (Não Parceladas)",
+                        amount: finalAmount,
+                        type: 'EXPENSE',
+                        start_date: dateStr,
+                        installments: 1,
+                        is_recurring: false,
+                        source_type: 'XP_CARD'
+                    }
+                }))
+
+                // Advance 1 month
+                currentIterDate.setMonth(currentIterDate.getMonth() + 1)
+            }
+
+            await Promise.all(promises)
+
+            setIsProjectOpen(false)
+            setSelectedScenarioId(scenario.id)
+
+        } catch (error) {
+            console.error(error)
+            alert("Failed to create projection scenario")
+        }
+    }
+
     // Calculations
     const { monthlyNet, cumulativeNet, incomes, expenses } = useMemo(() => {
         const monthlyNet = new Array(12).fill(0)
@@ -210,6 +325,18 @@ export function SimulationPage() {
                             ))}
                         </select>
 
+                        {selectedScenarioId && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setIsDeleteDialogOpen(true)}
+                                title="Delete Scenario"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        )}
+
                         <Button variant="outline" size="icon" onClick={handleReset} title="Reset to Baseline/Reload">
                             <RotateCcw className="h-4 w-4" />
                         </Button>
@@ -222,6 +349,13 @@ export function SimulationPage() {
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setIsBaselineAddOpen(true)} className="border-dashed border-primary/50 text-primary">
                         <Database className="mr-2 h-4 w-4" /> Add to Baseline (Real)
+                    </Button>
+                    <Button
+                        variant="default"
+                        onClick={handleProjectVariableSpend}
+                        className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                        <Sparkles className="mr-2 h-4 w-4" /> Project Variable Spend
                     </Button>
                     <Button variant="outline" onClick={addEmptyRow}>
                         <Plus className="mr-2 h-4 w-4" /> Add Empty Row
@@ -435,6 +569,58 @@ export function SimulationPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* PROJECT VARIABLE SPEND DIALOG */}
+            <Dialog open={isProjectOpen} onOpenChange={setIsProjectOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Project Variable Spend</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <p className="text-sm text-slate-600">
+                            Based on your usage, your projected variable card spend is <strong>{formatMoney(projectAmount)}</strong>.
+                        </p>
+                        <p className="text-sm text-slate-500">
+                            Do you want to create a Scenario "Orçamento Variável" adding this amount to future months (until Dec 2026)?
+                        </p>
+                        <div className="grid gap-2">
+                            <label className="text-sm font-medium">Adjust Amount</label>
+                            <Input
+                                type="number"
+                                value={projectAmount}
+                                onChange={e => setProjectAmount(parseFloat(e.target.value))}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                Este valor será registrado como despesa mensal (negativo).
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsProjectOpen(false)}>Cancel</Button>
+                        <Button onClick={confirmProjectVariableSpend} className="bg-purple-600 hover:bg-purple-700">
+                            <Sparkles className="mr-2 h-4 w-4" /> Create Scenario
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* DELETE CONFIRMATION */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete this scenario and all of its simulated items. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteScenario} className="bg-red-600 hover:bg-red-700">
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <RecurringTransactionDialog
                 isOpen={isBaselineAddOpen}

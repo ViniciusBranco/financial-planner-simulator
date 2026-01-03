@@ -1,34 +1,8 @@
-# Financial Planner & Simulator (Finanças 2025)
+# Financial Planner & Simulator (Finanças 2025-2026)
 
-> **Status:** Fase 4 Concluída (AI Categorization, RAG Memory & Premium UI) | **Próximo:** Fase 5 (Budgeting & Analytics)
+> **Status:** Fase 5 Iniciada (Budgeting & Strategy Transition) | **Data:** 02/01/2026
 
-Uma plataforma *Full-Stack* de Planejamento Financeiro Pessoal ("Enterprise-Grade for Personal Use"). O sistema transcende o rastreamento passivo de despesas, integrando um pipeline ETL resiliente, um motor de simulação estocástica e **Classificação Automática via IA Generativa Local** (RAG + LLM).
-
----
-
-## 🚀 Arquitetura e Tech Stack
-
-### Backend (`/backend`)
-
-- **Core:** Python 3.11+, **FastAPI** (Async).
-- **ORM & Data:** **SQLAlchemy 2.0** (AsyncSession), **Pydantic v2** (Strict Schemas & Validators).
-- **Database:** PostgreSQL 15 (via Docker).
-- **AI & ML:** **LangChain** + **Ollama** (Qwen 2.5:7b) para classificação semântica de transações.
-- **ETL Engine:** **Pandas** com lógica vetorial para parsing de CSVs "ragged" e detecção de layouts.
-- **Migrations:** Alembic.
-
-### Frontend (`/frontend`)
-
-- **Framework:** **React 18** + **Vite**.
-- **Language:** TypeScript (Strict Mode).
-- **Styling:** **Tailwind CSS v4** (Utility-first), `clsx`, `tailwind-merge`.
-- **UI Components:** **Shadcn/UI**, **TanStack Table** (Headless UI), Lucide React.
-- **State & Data Fetching:** **TanStack Query** (React Query v5).
-- **Visualization:** Recharts.
-
-### Infraestrutura
-
-- **Containerização:** Docker & Docker Compose (Hot-reload habilitado para DX).
+Plataforma *Full-Stack* de Planejamento Financeiro focada em transição de estratégia (Scenario 1 para Scenario 2). Integra um pipeline ETL resiliente, motor de simulação pivotado e **IA Generativa Local** com memória seletiva.
 
 ---
 
@@ -36,48 +10,50 @@ Uma plataforma *Full-Stack* de Planejamento Financeiro Pessoal ("Enterprise-Grad
 
 ### Backend (`/backend`)
 * **Core:** Python 3.11+, **FastAPI** (Async).
-* **AI & MLOps:** **LangChain** + **Ollama** (Qwen 2.5:7b) para inferência local.
-* **RAG Engine:** **RapidFuzz** para recuperação de contexto histórico (Similaridade Semântica + Numérica).
+* **AI & MLOps:** **LangChain** + **Ollama** (Qwen 2.5:7b).
+* **RAG Engine:** **RapidFuzz** para recuperação de contexto histórico (Semântico + Valor).
 * **ORM & Data:** **SQLAlchemy 2.0** (AsyncSession), **Pydantic v2**.
 * **Database:** PostgreSQL 15.
-* **ETL Engine:** **Pandas** com lógica vetorial para parsing de CSVs complexos.
 
 ### Frontend (`/frontend`)
 * **Framework:** **React 18** + **Vite**.
-* **Language:** TypeScript (Strict Mode).
-* **Styling:** **Tailwind CSS v4**, `clsx`, `tailwind-merge`.
-* **UI Components:** **Shadcn/UI**, **TanStack Table** (Headless UI).
+* **Styling:** **Tailwind CSS v4**.
 * **State:** **TanStack Query** (React Query v5).
-* **Visualization:** Recharts.
+* **Components:** **Shadcn/UI**, **Radix UI**, **Lucide React**.
 
 ---
 
-## 🌟 Funcionalidades Chave (Entregas Recentes)
+## 🌟 Histórico de Funcionalidades Chave
 
-### 1. AI Auto-Categorization (Local LLM + RAG)
-O sistema organiza suas finanças automaticamente usando Inteligência Artificial rodando 100% localmente (Privacidade Total):
-* **RAG Híbrido (Texto + Valor):** A IA consulta seu histórico de transações **Verificadas**. Ela aprende não apenas com a descrição (ex: "Bsys"), mas com o valor (ex: diferenciar "Salário" de "Reembolso" baseado na faixa de valor histórica).
-* **Smart Batching:** Processamento em lotes de 100 transações para otimizar o uso da GPU (GTX 1060).
-* **Human-in-the-Loop:** Sistema de flag `is_verified`. A IA nunca sobrescreve o que você corrigiu manualmente. O que você corrige torna-se "exemplo canônico" para o aprendizado futuro da IA.
-* **Taxonomia Estrita:** Distinção semântica entre **"Salário"** (Payroll explícito) e **"Receita"** (Inflows gerais).
+### Fase 1 a 3: Fundação e ETL
+* Pipeline de ingestão para XP Card (Crédito) e XP Account (Débito).
+* Motor de simulação determinístico com camadas de realizado vs. planejado.
+* Sistema de reconciliação assistida e detecção de duplicatas.
 
-### 2. Motor de Simulação e Cenários ("What-If")
-Arquitetura de camadas temporais para planejamento:
-* **Camada 0 (Realizado):** Transações reais importadas e conciliadas.
-* **Camada 1 (Baseline):** Projeção automática de contratos vigentes e parcelamentos ativos.
-* **Camada 2 (Cenários):** Overlay de eventos simulados (ex: "Compra de Carro") que persistem no banco sem afetar a contabilidade real.
+### Fase 4: Inteligência Artificial & UX Premium
+* **AI Auto-Categorization:** Implementação de RAG local com Qwen 2.5.
+* **Human-in-the-Loop:** Flag `is_verified` para proteger categorização manual e treinar a IA com dados canônicos.
+* **Taxonomia Refinada:** Divisão granular de Alimentação em (Mercado, Restaurante, Delivery).
 
-### 3. UX "Premium" & Data Refining
-Interface focada em produtividade e estabilidade:
-* **Tabela Estável:** Container com *Sticky Headers* e rolagem virtual (elimina "layout shift").
-* **Smart Editing:** Input de Categoria com "Type-ahead" e toggle para seleção rápida.
-* **Sorting Unificado:** Ordenação no Backend (`func.coalesce`) garantindo consistência entre tags manuais e categorias vinculadas.
-* **AI Manager:** Painel dedicado para rodar categorização em massa por competência (Mês/Ano).
+---
 
-### 4. ETL e Ingestão Avançada
-* **Sandwich Parsing:** Leitura de faturas de cartão e extratos bancários com detecção de cabeçalhos dinâmicos.
-* **Auto-Reconciliation (Assistida):** Detecção de duplicatas entre Planejado (Manual) vs Realizado (Extrato) com sugestão de substituição via UI.
-* **Source Awareness:** Segregação visual entre **Credit** (Passivo/Vermelho) e **Debit** (Ativo/Verde).
+## 🚩 Marcos Recentes (Janeiro 2026)
+
+### 1. Gestão de Estratégia Financeira
+* **Financial Health Widget:** Monitoramento de Liquidez vs. Passivo (Liability) para transição de estratégia:
+  * **Estratégia 1:** Receber para pagar o gasto passado (Déficit de capital de giro).
+  * **Estratégia 2:** Receber para pagar o futuro (Excesso de capital de giro).
+* **Pay Invoice Flow:** Fluxo atômico de transferência entre contas para liquidação de faturas e atualização de saúde financeira.
+
+### 2. Motor de Simulação Inteligente (Pivot Mode)
+* **Historical Burn Rate Projection:** Endpoint de analytics que calcula a média e mediana de gastos dos últimos 12 meses para projetar o "lifestyle" futuro.
+* **Pivot Table UI:** Agrupamento inteligente de `ScenarioItems` por descrição, permitindo visualizar e editar projeções anuais em uma única linha (estilo planilha).
+* **Integridade de Polaridade:** Garantia de sinal negativo para despesas em simulações, evitando distorções no *Cumulative Balance*.
+
+### 3. Governança de Dados
+* **Batch Delete Manager:** Exclusão cirúrgica de transações por competência e fonte.
+* **Review Mode:** Filtro de interface para auditoria rápida de sugestões da IA (`is_verified=False`).
+* **Date-Reference Sync:** Correção automática do mês de competência ao editar datas de transações manuais.
 
 ---
 
@@ -85,45 +61,16 @@ Interface focada em produtividade e estabilidade:
 
 ### Pré-requisitos
 * Docker & Docker Compose.
-* **Ollama** instalado no Host (Windows/Linux/Mac).
-* Modelo Qwen baixado: `ollama pull qwen2.5:7b`
+* **Ollama** com modelo: `ollama pull qwen2.5:7b`
 
 ### Rodando o Projeto
 ```bash
-# 1. Clone o repositório
-git clone [https://github.com/seu-usuario/finances-2025.git](https://github.com/seu-usuario/finances-2025.git)
-cd finances-2025
-
-# 2. Suba os containers
 docker compose up -d --build
-
-# 3. Acesse a Aplicação
-# Frontend: http://localhost:5173
-# Backend Docs: http://localhost:8000/docs
 ```
 
-### Comandos Úteis
+🔮 Roadmap
+[x] Smart Simulation: Projeção baseada em média histórica.
 
-```bash
-# Resetar Banco de Dados (Ambiente Dev - CUIDADO)
-docker compose exec db psql -U postgres -d finances -c "TRUNCATE TABLE transactions, recurring_transactions, scenarios, scenario_items RESTART IDENTITY CASCADE;"
+[ ] Budgeting Targets: Definição de metas de economia por categoria.
 
-# Seed de Categorias Iniciais
-docker compose exec backend python -m app.etl.seed_categories
-```
-
----
-
-## 🔮 Roadmap
-
-- [x] AI Categorizer: Implementado (RAG + Qwen 2.5).
-
-- [ ] Budgeting: Definição de tetos de gastos e alertas de desvio.
-
-- [ ] Analytics Avançado: Breakdown de gastos por fornecedor e evolução anual.
-
----
-
-## 📄 Licença
-
-Proprietário: Vinicius Branco. Projeto de uso pessoal e portfólio de arquitetura de software.
+[ ] Investments Tracking: Integração de saldo de corretora para cálculo de patrimônio total líquido.

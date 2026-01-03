@@ -123,3 +123,71 @@ async def get_dashboard_breakdown(
         "by_source": by_source,
         "by_category": by_category
     }
+
+@router.get("/health-ratio")
+async def get_health_ratio(
+    db: AsyncSession = Depends(get_db),
+    year: Optional[int] = Query(None)
+):
+    """
+    Returns the financial health ratio (Liquidity / Liability).
+    - Params: year (optional, strictly mainly considers ALL TIME up to reference date, but let's base it on the current snapshot).
+    - Logic:
+     - liquidity: Sum of amount where source_type IN ('XP_ACCOUNT', 'MANUAL').
+     - liability: Sum of amount where source_type = 'XP_CARD'. (This should be negative).
+     - coverage_ratio: (liquidity / abs(liability)) * 100.
+    - Return: {"liquidity": float, "liability": float, "ratio": float, "status": "SURVIVAL" | "COMFORT"}.
+     - Status is "COMFORT" if liquidity >= abs(liability).
+    """
+
+    # We calculate the running balance (sum of signed amounts).
+    # If year is provided, we filter for transactions referencing a date up to the end of that year.
+    # Otherwise, we sum everything (current snapshot).
+
+    query = select(
+        func.sum(
+            case(
+                (Transaction.source_type.in_(['XP_ACCOUNT', 'MANUAL']), Transaction.amount),
+                else_=0
+            )
+        ).label('liquidity'),
+        func.sum(
+            case(
+                (Transaction.source_type == 'XP_CARD', Transaction.amount),
+                else_=0
+            )
+        ).label('liability')
+    )
+
+    if year:
+        # Filter for all transactions up to the end of the specified year
+        query = query.filter(func.extract('year', Transaction.reference_date) <= year)
+
+    result = await db.execute(query)
+    row = result.one()
+
+    liquidity = float(row.liquidity or 0)
+    liability = float(row.liability or 0)
+    abs_liability = abs(liability)
+
+    ratio = 0.0
+    # Avoid division by zero
+    if abs_liability > 0:
+        ratio = (liquidity / abs_liability) * 100
+    else:
+        # If no liability, and we have positive liquidity, we are reasonably "100%" safe or more.
+        if liquidity >= 0:
+            ratio = 100.0  # Or treat as infinite coverage
+    
+    status = "SURVIVAL"
+    # Status is "COMFORT" if liquidity >= abs(liability).
+    # This implies we can pay off the debt immediately.
+    if liquidity >= abs_liability:
+        status = "COMFORT"
+
+    return {
+        "liquidity": liquidity,
+        "liability": liability,
+        "ratio": ratio,
+        "status": status
+    }

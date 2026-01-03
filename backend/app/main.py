@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine
 from app.models.transaction import Base
-from app.api import transactions, dashboard, recurring, simulation, scenarios
+from app.api import transactions, dashboard, recurring, simulation, scenarios, analytics
 
 app = FastAPI(title="Personal Finance API")
 
@@ -26,6 +26,7 @@ app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(recurring.router, prefix="/recurring", tags=["Recurring"])
 app.include_router(simulation.router, prefix="/simulation", tags=["Simulation"])
 app.include_router(scenarios.router, prefix="/scenarios", tags=["Scenarios"])
+app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 
 @app.get("/")
 def read_root():

@@ -167,9 +167,7 @@ async def get_simulation_projection(
             for item in scenario_obj.items:
                 values = [0.0] * months
                 amount = float(item.amount)
-                # Ensure correct sign.
-                # Assuming ScenarioItem.amount is absolute value visually.
-                signed_amount = amount * (-1 if item.type == TransactionType.EXPENSE else 1)
+                signed_amount = amount
                 
                 if item.is_recurring:
                     # Recurring from start_date

@@ -4,6 +4,7 @@ import { KPICards } from "./components/KPICards"
 import { FinancialOverview } from "./components/FinancialOverview"
 import { CategoryBreakdownMonthly } from "./components/SourceBreakdown"
 import { CategoryBreakdown } from "./components/CategoryBreakdown"
+import { FinancialHealthWidget } from "./components/FinancialHealthWidget"
 import { useDashboardSummary, useDashboardBreakdown } from "@/hooks/useTransactions"
 
 export function DashboardPage() {
@@ -42,11 +43,16 @@ export function DashboardPage() {
                 </div>
 
                 {summary && (
-                    <KPICards
-                        income={summary.total_income}
-                        expense={summary.total_expense}
-                        balance={summary.balance}
-                    />
+                    <>
+                        <KPICards
+                            income={summary.total_income}
+                            expense={summary.total_expense}
+                            balance={summary.balance}
+                        />
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <FinancialHealthWidget year={year} />
+                        </div>
+                    </>
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

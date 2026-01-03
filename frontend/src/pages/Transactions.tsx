@@ -8,7 +8,8 @@ import { DataImport } from '@/features/transactions/components/DataImport'
 import { AICategorizeDialog } from '@/components/transactions/AICategorizeDialog'
 import { BulkDeleteDialog } from '@/components/transactions/BulkDeleteDialog'
 import { CategoryInput } from '@/components/transactions/CategoryInput'
-import { ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Bot, Trash2, Sparkles } from 'lucide-react'
+import { PayInvoiceDialog } from '@/components/transactions/PayInvoiceDialog'
+import { ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Bot, Trash2, Sparkles, CreditCard } from 'lucide-react'
 
 export default function TransactionsPage() {
     const [pagination, setPagination] = useState<PaginationState>({
@@ -25,6 +26,7 @@ export default function TransactionsPage() {
     const [sourceType, setSourceType] = useState<string>('')
     const [isAIDialogOpen, setIsAIDialogOpen] = useState(false)
     const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+    const [isPayInvoiceOpen, setIsPayInvoiceOpen] = useState(false)
     const [showUnverifiedOnly, setShowUnverifiedOnly] = useState(false)
 
     const handlePrevMonth = () => {
@@ -122,6 +124,14 @@ export default function TransactionsPage() {
                                 title="Batch Delete"
                             >
                                 <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsPayInvoiceOpen(true)}
+                                className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 gap-2"
+                            >
+                                <CreditCard className="h-4 w-4" /> Pay Invoice
                             </Button>
                             <Button
                                 variant="default"
@@ -342,6 +352,11 @@ export default function TransactionsPage() {
                     onClose={() => setIsDeleteOpen(false)}
                     currentMonth={month}
                     currentYear={year}
+                />
+
+                <PayInvoiceDialog
+                    isOpen={isPayInvoiceOpen}
+                    onClose={() => setIsPayInvoiceOpen(false)}
                 />
             </div>
         </DashboardLayout>

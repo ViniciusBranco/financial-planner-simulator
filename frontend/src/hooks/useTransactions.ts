@@ -540,3 +540,88 @@ export function useBatchDeleteTransactions() {
         },
     })
 }
+
+export type FinancialHealth = {
+    liquidity: number
+    liability: number
+    ratio: number
+    status: 'COMFORT' | 'SURVIVAL'
+}
+
+async function fetchFinancialHealth(year?: number) {
+    let url = `${API_URL}/dashboard/health-ratio`
+    if (year) url += `?year=${year}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Failed to fetch financial health')
+    return res.json()
+}
+
+export function useFinancialHealth(year?: number) {
+    return useQuery<FinancialHealth>({
+        queryKey: ['financial_health', year],
+        queryFn: () => fetchFinancialHealth(year),
+    })
+}
+
+type PayInvoiceInput = {
+    amount: number
+    date: string
+    account_source_id?: string
+    card_source_id?: string
+}
+
+async function payInvoice(data: PayInvoiceInput) {
+    const res = await fetch(`${API_URL}/transactions/pay-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    })
+    if (!res.ok) throw new Error('Failed to pay invoice')
+    return res.json()
+}
+
+export function usePayInvoice() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: payInvoice,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+            queryClient.invalidateQueries({ queryKey: ['financial_health'] })
+        },
+    })
+}
+
+export async function fetchAverageSpending() {
+    // Attempt to fetch 3-month average for XP Card as a baseline
+    // The endpoint might accept params, but for now we call it directly
+    const res = await fetch(`${API_URL}/analytics/average-spending`)
+    if (!res.ok) throw new Error('Failed to fetch average spending')
+    return res.json() as Promise<{ average: number }>
+}
+
+export function useAverageSpending() {
+    return useQuery({
+        queryKey: ['average_spending'],
+        queryFn: fetchAverageSpending,
+        enabled: false, // Only fetch on demand
+    })
+}
+
+async function deleteScenario(id: number) {
+    const res = await fetch(`${API_URL}/scenarios/${id}`, {
+        method: 'DELETE',
+    })
+    if (!res.ok) throw new Error('Failed to delete scenario')
+    return
+}
+
+export function useDeleteScenario() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: deleteScenario,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['scenarios'] })
+        },
+    })
+}

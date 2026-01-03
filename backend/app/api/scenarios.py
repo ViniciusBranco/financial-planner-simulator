@@ -20,8 +20,14 @@ async def create_scenario(scenario: ScenarioCreate, db: AsyncSession = Depends(g
     db_scenario = Scenario(**scenario.dict())
     db.add(db_scenario)
     await db.commit()
-    await db.refresh(db_scenario)
-    # Ensure items is loaded (empty list)
+    await db.commit()
+    
+    # Re-fetch to ensure relationship is loaded (avoids MissingGreenlet and empty list hack)
+    result = await db.execute(
+        select(Scenario).options(selectinload(Scenario.items)).where(Scenario.id == db_scenario.id)
+    )
+    db_scenario = result.scalars().first()
+    
     return db_scenario
 
 @router.get("/{scenario_id}", response_model=ScenarioSchema)
@@ -47,7 +53,7 @@ async def add_scenario_item(scenario_id: int, item: ScenarioItemCreate, db: Asyn
     result = await db.execute(select(Scenario).options(selectinload(Scenario.items)).where(Scenario.id == scenario_id))
     return result.scalars().first()
 
-@router.delete("/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{scenario_id}")
 async def delete_scenario(scenario_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Scenario).where(Scenario.id == scenario_id))
     scenario = result.scalars().first()
@@ -56,3 +62,5 @@ async def delete_scenario(scenario_id: int, db: AsyncSession = Depends(get_db)):
     
     await db.delete(scenario)
     await db.commit()
+    
+    return {"message": "Scenario deleted successfully"}

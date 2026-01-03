@@ -246,6 +246,12 @@ async def update_transaction(
              # If cleared
              db_transaction.category_id = None
 
+    # Sync reference_date if date is changed and reference_date is not manually set
+    # This prevents the bug where moving a transaction's date doesn't move it to the correct month view.
+    # We apply this for all types for now, as requested.
+    if 'date' in update_data and 'reference_date' not in update_data:
+        update_data['reference_date'] = update_data['date']
+
     for key, value in update_data.items():
         setattr(db_transaction, key, value)
         
@@ -449,3 +455,55 @@ async def auto_categorize_transactions(
         "updated": updated_count,
         "message": f"Processed {processed_count} transactions. Updated {updated_count}. Run again to continue."
     }
+
+class PayInvoiceRequest(BaseModel):
+    amount: float
+    date: date
+    account_source_id: Optional[str] = "XP_ACCOUNT"
+    card_source_id: Optional[str] = "XP_CARD"
+
+@router.post("/pay-invoice")
+async def pay_invoice(
+    request: PayInvoiceRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Creates two transactions to represent paying a credit card invoice:
+    1. Debit from Checking Account (XP_ACCOUNT)
+    2. Credit to Credit Card (XP_CARD) to reduce liability
+    """
+    
+    # Ensure positive amount for calculation
+    amt = abs(request.amount)
+    
+    # 1. Debit from Source Account
+    debit_tx = Transaction(
+        date=request.date,
+        description="Pagamento Fatura Cartão",
+        amount=-amt,
+        type=TransactionType.TRANSFER,
+        source_type=request.account_source_id,
+        category_legacy="Transferência/Ajuste",
+        reference_date=request.date,
+        is_verified=True,
+        manual_tag="InvoicePayment"
+    )
+    
+    # 2. Credit to Card Source (Reduces the negative balance/liability)
+    credit_tx = Transaction(
+        date=request.date,
+        description="Pagamento Recebido (Ajuste)",
+        amount=amt,
+        type=TransactionType.TRANSFER,
+        source_type=request.card_source_id,
+        category_legacy="Transferência/Ajuste",
+        reference_date=request.date,
+        is_verified=True,
+        manual_tag="InvoicePayment"
+    )
+    
+    db.add(debit_tx)
+    db.add(credit_tx)
+    await db.commit()
+    
+    return {"status": "success", "message": "Invoice payment recorded successfully"}

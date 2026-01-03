@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui"
 import { ArrowUpCircle, ArrowDownCircle, Wallet } from "lucide-react"
+import { InfoIconTooltip } from "@/components/InfoIconTooltip"
 
 type KPICardsProps = {
     income: number
@@ -12,7 +13,10 @@ export function KPICards({ income, expense, balance }: KPICardsProps) {
         <div className="grid gap-4 md:grid-cols-3">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+                    <div className="flex items-center space-x-2">
+                        <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+                        <InfoIconTooltip text="Acumulado do Ano: Receitas - Despesas. Indica se você gastou menos do que ganhou em 2025." />
+                    </div>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>

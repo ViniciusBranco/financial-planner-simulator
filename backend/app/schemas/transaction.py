@@ -69,12 +69,12 @@ class TransactionCreate(TransactionBase):
 class TransactionUpdate(BaseModel):
     model_config = ConfigDict(strict=True)
 
-    date: Optional[date_type] = None
-    amount: Optional[Decimal] = None
+    date: Optional[Annotated[date_type, BeforeValidator(parse_date_str)]] = None
+    amount: Optional[Annotated[Decimal, BeforeValidator(parse_decimal_str)]] = None
     category_legacy: Optional[str] = None
     category_id: Optional[UUID] = None
     description: Optional[str] = None
-    type: Optional[TransactionType] = None
+    type: Optional[Annotated[TransactionType, BeforeValidator(parse_type_str)]] = None
     payment_method: Optional[str] = None
     manual_tag: Optional[str] = None
     is_recurring: Optional[bool] = None

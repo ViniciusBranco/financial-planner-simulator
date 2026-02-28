@@ -61,6 +61,7 @@ class Transaction(Base):
     # New fields for detailed tracking
     payment_method = Column(String, nullable=True) # e.g. "Flash", "Alelo", "CC"
     manual_tag = Column(String, nullable=True) # e.g. "Classif" from CSV
+    unique_hash = Column(String, unique=True, index=True, nullable=True)
     is_recurring = Column(Boolean, default=False, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
     

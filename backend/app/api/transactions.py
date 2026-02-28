@@ -6,7 +6,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import date
 import calendar
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.core.database import get_db
 from app.etl.importer import import_transactions_from_file
@@ -121,16 +121,10 @@ async def create_transaction(
 @router.post("/upload")
 async def upload_transactions(
     file: List[UploadFile] = File(...),
-    reference_year: Optional[int] = Form(None),
-    reference_month: Optional[int] = Form(None),
+    manual_reference_date: Optional[date] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
-    override_reference_date = None
-    if reference_year and reference_month:
-        try:
-            override_reference_date = date(reference_year, reference_month, 1)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid year or month.")
+    override_reference_date = manual_reference_date
 
     results = []
     total_imported = 0
@@ -168,6 +162,8 @@ async def upload_transactions(
     }
 
 class ProjectRequest(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     month: int
     year: int
 
@@ -319,6 +315,8 @@ async def delete_transaction(
     return None
 
 class BulkDeleteRequest(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     ids: List[UUID]
 
 @router.post("/bulk-delete", status_code=204)
@@ -457,6 +455,8 @@ async def auto_categorize_transactions(
     }
 
 class PayInvoiceRequest(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     amount: float
     date: date
     account_source_id: Optional[str] = "XP_ACCOUNT"

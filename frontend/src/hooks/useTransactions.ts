@@ -220,13 +220,12 @@ export function useCreateTransaction() {
     })
 }
 
-async function uploadTransactions({ files, month, year }: { files: File[], month?: string, year?: string }): Promise<any> {
+async function uploadTransactions({ files, manual_reference_date }: { files: File[], manual_reference_date?: string }): Promise<any> {
     const formData = new FormData()
     files.forEach((file) => {
         formData.append('file', file)
     })
-    if (month) formData.append('reference_month', month)
-    if (year) formData.append('reference_year', year)
+    if (manual_reference_date) formData.append('manual_reference_date', manual_reference_date)
 
     const res = await fetch(`${API_URL}/transactions/upload`, {
         method: 'POST',

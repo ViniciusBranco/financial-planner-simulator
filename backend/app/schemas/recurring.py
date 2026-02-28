@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 from typing import Optional
 from decimal import Decimal
 from uuid import UUID
@@ -6,6 +6,8 @@ from datetime import date
 from app.models.transaction import TransactionType
 
 class RecurringTransactionBase(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     description: str
     amount: Decimal
     type: TransactionType
@@ -27,6 +29,8 @@ class RecurringTransactionCreate(RecurringTransactionBase):
         return self
 
 class RecurringTransactionUpdate(RecurringTransactionBase):
+    model_config = ConfigDict(strict=True)
+
     description: Optional[str] = None
     amount: Optional[Decimal] = None
     type: Optional[TransactionType] = None

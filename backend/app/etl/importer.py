@@ -1,6 +1,7 @@
-import pandas as pd
+import polars as pl
 import re
 import uuid
+import hashlib
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
@@ -14,7 +15,7 @@ def parse_currency(value: Any) -> Optional[Decimal]:
     Parses currency string like 'R$ 1.200,50' to Decimal.
     Returns None if empty or invalid.
     """
-    if pd.isna(value) or value == '' or value == '-':
+    if value is None or (isinstance(value, float) and value != value) or value == '' or value == '-':
         return None
     
     if isinstance(value, (int, float)):
@@ -44,7 +45,7 @@ def parse_date(date_str: Any) -> Optional[date]:
     Parses DD/MM/YYYY or DD/MM/YY (plus time) to date object.
     Handles '28/11/25 às 11:09:43'.
     """
-    if pd.isna(date_str):
+    if date_str is None or (isinstance(date_str, float) and date_str != date_str):
         return None
         
     s = str(date_str).strip()
@@ -85,7 +86,7 @@ def parse_installment_column(val: Any) -> Tuple[Optional[int], Optional[int]]:
     """
     Parses string "1 de 10" or "01/12" to (1, 10).
     """
-    if pd.isna(val):
+    if val is None or (isinstance(val, float) and val != val):
         return None, None
     s = str(val).strip().lower()
     
@@ -120,7 +121,7 @@ async def import_transactions_from_file(file_obj: Any, filename: str, session: A
 
     try:
         # Read with ; delimiter
-        df = pd.read_csv(file_obj, sep=';', encoding='utf-8')
+        df = pl.read_csv(file_obj, separator=';', ignore_errors=True)
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return [], []
@@ -131,7 +132,7 @@ async def import_transactions_from_file(file_obj: Any, filename: str, session: A
     is_xp_card = 'Portador' in columns and 'Parcela' in columns
     is_xp_account = 'Saldo' in columns and 'Descricao' in columns 
     # Let's normalize columns to be safe
-    df.columns = [c.strip() for c in df.columns]
+    df = df.rename({c: c.strip() for c in df.columns})
     
     # Check again
     if 'Portador' in df.columns and 'Parcela' in df.columns:
@@ -148,7 +149,7 @@ async def import_transactions_from_file(file_obj: Any, filename: str, session: A
     print(f"Unknown CSV format. Columns: {df.columns}")
     return [], []
 
-async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession, override_reference_date: Optional[date] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+async def process_xp_card(df: pl.DataFrame, filename: str, session: AsyncSession, override_reference_date: Optional[date] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Process XP Credit Card CSV.
     Columns expected: Data, Estabelecimento, Portador, Valor, Parcela...
@@ -166,7 +167,7 @@ async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession
     res_cats = await session.execute(stmt_cats)
     all_categories = {c.name: c.id for c in res_cats.scalars().all()}
 
-    for idx, row in df.iterrows():
+    for idx, row in enumerate(df.to_dicts()):
         try:
             # Parse Amount
             raw_amount = parse_currency(row.get('Valor'))
@@ -252,7 +253,7 @@ async def process_xp_card(df: pd.DataFrame, filename: str, session: AsyncSession
 
     return await persist_transactions(session, extracted)
 
-async def process_xp_account(df: pd.DataFrame, filename: str, session: AsyncSession, override_reference_date: Optional[date] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+async def process_xp_account(df: pl.DataFrame, filename: str, session: AsyncSession, override_reference_date: Optional[date] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Process XP Bank Account CSV.
     Columns expected: Data, Lançamento (or Descrição), Valor, Saldo...
@@ -277,7 +278,7 @@ async def process_xp_account(df: pd.DataFrame, filename: str, session: AsyncSess
     res_cats = await session.execute(stmt_cats)
     all_categories = {c.name: c.id for c in res_cats.scalars().all()}
 
-    for idx, row in df.iterrows():
+    for idx, row in enumerate(df.to_dicts()):
         try:
             # Parse Amount
             val_col = 'Valor'
@@ -343,6 +344,25 @@ async def process_xp_account(df: pd.DataFrame, filename: str, session: AsyncSess
             
     return await persist_transactions(session, extracted)
 
+def generate_transaction_hash(entry: Dict[str, Any]) -> str:
+    """
+    Generates a deterministic hash for checking duplicates.
+    Hash = sha256(date + amount + description + source_type + source_filename)
+       
+    The user requested: sha256(date + description + amount + source_id)
+    We'll use source_type as part of source_id.
+    """
+    # Normalize data for hashing
+    d_str = str(entry.get('date', ''))
+    amt_str = str(entry.get('amount', ''))
+    desc_str = str(entry.get('description', '')).strip()
+    src_str = str(entry.get('source_type', ''))
+    
+    # We create the raw string
+    raw = f"{d_str}{amt_str}{desc_str}{src_str}"
+    
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
 async def persist_transactions(session: AsyncSession, transactions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Deduplicates and saves transactions.
@@ -351,7 +371,46 @@ async def persist_transactions(session: AsyncSession, transactions: List[Dict[st
     saved = []
     candidates = []
     
-    for tx_data in transactions:
+    # 1. Compute Hashes with Intra-Batch Counter
+    # (To handle legitimate duplicates within the same file)
+    batch_hashes_counter = {} # hash_base -> count
+    entries_to_check = []
+    
+    for tx in transactions:
+        base_hash = generate_transaction_hash(tx)
+        
+        current_count = batch_hashes_counter.get(base_hash, 0)
+        unique_hash = f"{base_hash}_{current_count}"
+        
+        batch_hashes_counter[base_hash] = current_count + 1
+        
+        tx['unique_hash'] = unique_hash
+        entries_to_check.append(tx)
+        
+    if not entries_to_check:
+        return [], []
+        
+    # 2. Check Database for Existing Hashes
+    unique_hashes = [tx['unique_hash'] for tx in entries_to_check]
+    
+    # We query for any of these hashes already existing.
+    # We use chunks to avoid hitting parameter limits if batch is huge (though usually it's small).
+    # For now, simplistic approach.
+    existing_hashes = set()
+    
+    # Chunking just in case (Postgres limit ~32k or 65k params)
+    chunk_size = 1000
+    for i in range(0, len(unique_hashes), chunk_size):
+        chunk = unique_hashes[i:i + chunk_size]
+        stmt_check = select(Transaction.unique_hash).where(Transaction.unique_hash.in_(chunk))
+        result_check = await session.execute(stmt_check)
+        existing_hashes.update(result_check.scalars().all())
+    
+    for tx_data in entries_to_check:
+        if tx_data['unique_hash'] in existing_hashes:
+            # Skip duplicate
+            continue
+            
         # Auto-Reconciliation Logic
         # Check for matching MANUAL transaction
         target_amount = tx_data['amount']

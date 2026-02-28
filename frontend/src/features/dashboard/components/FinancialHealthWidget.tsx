@@ -62,13 +62,13 @@ export function FinancialHealthWidget({ year }: FinancialHealthWidgetProps) {
                     {/* Bars Comparison */}
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="space-y-1">
-                            <span className="text-muted-foreground">Liquidity (Cash)</span>
+                            <span className="text-muted-foreground">Liquidez (Current Cash)</span>
                             <div className="text-2xl font-bold text-green-600">
                                 {liquidity.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </div>
                         </div>
                         <div className="space-y-1 text-right">
-                            <span className="text-muted-foreground">Liability (Card)</span>
+                            <span className="text-muted-foreground">Liability (All Card Debt)</span>
                             <div className="text-2xl font-bold text-red-600">
                                 {liability.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </div>

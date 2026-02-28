@@ -49,9 +49,7 @@ export function DashboardPage() {
                             expense={summary.total_expense}
                             balance={summary.balance}
                         />
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <FinancialHealthWidget year={year} />
-                        </div>
+                        <FinancialHealthWidget year={year} />
                     </>
                 )}
 

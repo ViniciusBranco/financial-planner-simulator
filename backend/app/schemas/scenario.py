@@ -1,9 +1,11 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 from typing import List, Optional
 from datetime import date
 from app.models.transaction import TransactionType
 
 class ScenarioItemBase(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     description: str
     amount: float
     type: TransactionType
@@ -29,6 +31,8 @@ class ScenarioItem(ScenarioItemBase):
         from_attributes = True
 
 class ScenarioBase(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     name: str
     description: Optional[str] = None
 
@@ -43,5 +47,7 @@ class Scenario(ScenarioBase):
         from_attributes = True
 
 class ScenarioUpdate(BaseModel):
+    model_config = ConfigDict(strict=True)
+
     name: Optional[str] = None
     description: Optional[str] = None

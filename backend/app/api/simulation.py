@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Dict, Any, Optional
 from datetime import date, timedelta
-import pandas as pd
+import polars as pl
 from dateutil.relativedelta import relativedelta
 
 from app.core.database import get_db
@@ -104,33 +104,32 @@ async def get_simulation_projection(
                 "source": tx.source_type
             })
             
-        df = pd.DataFrame(data)
+        df = pl.DataFrame(data)
         
-        if not df.empty:
+        if not df.is_empty():
             # Normalize description for grouping
-            df['norm_desc'] = df['description'].str.lower().str.strip()
+            df = df.with_columns(
+                pl.col('description').str.to_lowercase().str.strip_chars().alias('norm_desc')
+            )
             
             # Group by unique plan identifiers: Description + Total Installments
             # We pick the LATEST transaction by Date to see where we stand
-            grouped = df.groupby(['norm_desc', 'total_installments'])
+            latest_txs = df.sort("date").group_by(['norm_desc', 'total_installments']).last()
             
-            for (norm_desc, total), group in grouped:
-                # Find the LATEST transaction in this group (max date)
-                max_idx = group['date'].idxmax()
-                max_entry = group.loc[max_idx]
-                
-                max_n = max_entry['current_installment']
-                last_date = max_entry['date']
+            for row in latest_txs.to_dicts():
+                total = row['total_installments']
+                max_n = row['current_installment']
+                last_date = row['date']
                 
                 # Validation: Only project if plan is NOT finished
                 if max_n < total:
                     remaining = total - max_n
                     
                     # Values for projection
-                    amount = max_entry['amount']
-                    tx_type = max_entry['type']
-                    original_desc = max_entry['description']
-                    source = max_entry['source']
+                    amount = row['amount']
+                    tx_type = row['type']
+                    original_desc = row['description']
+                    source = row['source']
                     
                     values = [0.0] * months
                     next_due = last_date + relativedelta(months=1)

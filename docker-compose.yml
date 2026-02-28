@@ -1,8 +1,8 @@
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_18:/var/lib/postgresql
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -28,6 +28,15 @@ services:
     networks:
       - finances-net
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    restart: unless-stopped
+    networks:
+      - finances-net
+
   frontend:
     build:
       context: ./frontend
@@ -45,6 +54,7 @@ services:
 
 volumes:
   postgres_data:
+  postgres_data_18:
 
 
 networks:

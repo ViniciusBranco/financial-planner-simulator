@@ -93,11 +93,13 @@ export const DataImport: React.FC = () => {
         if (selectedFiles.length === 0) return
 
         setUploadStatus('uploading')
+        // Construct Date string YYYY-MM-DD
+        const manualDate = useAutoDate ? undefined : `${selectedYear}-${selectedMonth.padStart(2, '0')}-01`
+
         upload(
             {
                 files: selectedFiles,
-                month: useAutoDate ? undefined : selectedMonth,
-                year: useAutoDate ? undefined : selectedYear
+                manual_reference_date: manualDate
             },
             {
                 onSuccess: (data) => {

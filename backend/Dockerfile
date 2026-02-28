@@ -1,17 +1,21 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install Poetry
-RUN pip install poetry
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy poetry files
+# Install poetry
+RUN pip install --no-cache-dir poetry==1.8.3
+
+# Copy requirements and install
 COPY pyproject.toml poetry.lock* ./
-
-# Install dependencies (no dev dependencies, no root package)
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --no-root
+    && poetry install --only main --no-interaction --no-ansi
 
+# Copy project files
 COPY . .
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

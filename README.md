@@ -9,17 +9,17 @@ Plataforma *Full-Stack* de Planejamento Financeiro focada em transição de estr
 ## 🚀 Arquitetura e Tech Stack
 
 ### Backend (`/backend`)
-* **Core:** Python 3.11+, **FastAPI** (Async).
-* **AI & MLOps:** **LangChain** + **Ollama** (Qwen 2.5:7b).
-* **RAG Engine:** **RapidFuzz** para recuperação de contexto histórico (Semântico + Valor).
-* **ORM & Data:** **SQLAlchemy 2.0** (AsyncSession), **Pydantic v2**.
-* **Database:** PostgreSQL 15.
+* **Core:** Python 3.12+, **FastAPI** (Async) com **Poetry**.
+* **AI & MLOps:** **LangChain 1.0+** + **LangGraph 1.0+**.
+* **Data Engine**: **Polars** (High-performance OLAP processing).
+* **ORM & Data:** **SQLAlchemy 2.0** (AsyncSession), **Pydantic v2** (Strict Mode).
+* **Database:** PostgreSQL 18.
+* **Infrastructure**: Docker Compose & Cloudflare Tunnels.
 
 ### Frontend (`/frontend`)
-* **Framework:** **React 18** + **Vite**.
+* **Framework:** **React 19** + **Vite**.
 * **Styling:** **Tailwind CSS v4**.
 * **State:** **TanStack Query** (React Query v5).
-* **Components:** **Shadcn/UI**, **Radix UI**, **Lucide React**.
 
 ---
 

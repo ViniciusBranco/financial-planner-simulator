@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 from app.core.database import engine
 from app.models.transaction import Base
 from app.api import transactions, dashboard, recurring, simulation, scenarios, analytics
@@ -14,6 +17,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+logger = logging.getLogger("uvicorn.error")
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    exc_str = f"Validation Error (422) for request {request.url}. Errors: {exc.errors()} - Body: {exc.body}"
+    logger.error(exc_str)
+    return JSONResponse(
+        status_code=422,
+        content={"message": "Validation Error", "details": exc.errors()}
+    )
 
 # @app.on_event("startup")
 # async def startup():

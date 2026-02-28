@@ -8,6 +8,9 @@
 *.pdf
 *.zip
 *.rar
+AGENT_REPORT.md
+AGENT_REPORT_TEMPLATE.md
+
 
 # Exceção: Se você tiver algum CSV de exemplo/template que queira subir, 
 # descomente a linha abaixo e ajuste o nome:

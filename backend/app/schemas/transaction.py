@@ -38,9 +38,9 @@ def parse_date_str(v: Any) -> Any:
     return v
 
 def parse_decimal_str(v: Any) -> Any:
-    if isinstance(v, str):
+    if isinstance(v, (str, float, int)):
         try:
-            return Decimal(v)
+            return Decimal(str(v))
         except Exception:
             pass
     return v
